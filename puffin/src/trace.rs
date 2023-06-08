@@ -38,6 +38,10 @@ use crate::{
     variable_data::VariableData,
 };
 
+/// When adding some (sub-)message m to ϕ, puffin and tlspuffin
+/// also stores from which agent it originates, the kind
+/// of message it is, and its internal Rust type
+/// The attacker can use queries to access its knowledge in place of variables in attacker terms and traces
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash, Eq, PartialEq)]
 pub struct Query<M> {
     pub agent_name: AgentName,
@@ -65,7 +69,7 @@ impl<M: Matcher> Knowledge<M> {
 /// by the [`crate::variable_data::extract_knowledge`] function
 /// [Knowledge] is made of the data, the agent that produced the output, the TLS message type and the internal type.
 pub struct Knowledge<M: Matcher> {
-    pub agent_name: AgentName,
+    pub agent_name: AgentName, // agent that produced the output
     pub matcher: Option<M>,
     pub data: Box<dyn VariableData>,
 }
@@ -93,7 +97,7 @@ impl<M: Matcher> fmt::Display for Knowledge<M> {
 
 /// The [`TraceContext`] contains a list of [`VariableData`], which is known as the knowledge
 /// of the attacker. [`VariableData`] can contain data of various types like for example
-/// client and server extensions, cipher suits or session ID It also holds the concrete
+/// client and server extensions, cipher suits or session ID. It also holds the concrete
 /// references to the [`Agent`]s and the underlying streams, which contain the messages
 /// which have need exchanged and are not yet processed by an output step.
 pub struct TraceContext<PB: ProtocolBehavior + 'static> {
@@ -136,11 +140,10 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         &self.claims
     }
 
+    // this is specific to the PUT protocol
     pub fn verify_security_violations(&self) -> Result<(), Error> {
         let claims = self.claims.deref_borrow();
         if let Some(msg) = PB::SecurityViolationPolicy::check_violation(claims.slice()) {
-            // [TODO] Lucca: versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
-            // Max: We only check for Finished claims right now, so its fine to check only at the end
             return Err(Error::SecurityClaim(msg));
         }
         Ok(())
@@ -150,7 +153,8 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         self.knowledge.push(knowledge)
     }
 
-    /// Count the number of sub-messages of type [type_id] in the output message [in_step_id].
+    /// Count the number of sub-messages of type [type_id] in the output message [in_step_id]
+    /// matches on the agent name, the type of the tls message and the internal rust type
     pub fn number_matching_message(
         &self,
         agent: AgentName,
@@ -174,11 +178,12 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     ) -> Option<Box<dyn Any>> {
         self.claims
             .deref_borrow()
-            .find_last_claim(agent_name, query_type_shape)
+            .find_last_claim(agent_name, query_type_shape) // why last ?
             .map(|claim| claim.inner())
     }
 
     /// Returns the variable which matches best -> highest specificity
+    /// makes a query
     /// If we want a variable with lower specificity, then we can just query less specific
     pub fn find_variable(
         &self,
@@ -190,24 +195,25 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         let mut possibilities: Vec<&Knowledge<PB::Matcher>> = Vec::new();
 
         for knowledge in &self.knowledge {
-            let data: &dyn VariableData = knowledge.data.as_ref();
+            let data: &dyn VariableData = knowledge.data.as_ref(); // variable data
 
-            if query_type_id == data.type_id()
-                && query.agent_name == knowledge.agent_name
-                && knowledge.matcher.matches(&query.matcher)
+            if query_type_id == data.type_id() // internal type
+                && query.agent_name == knowledge.agent_name // agent
+                && knowledge.matcher.matches(&query.matcher) // TLS type
             {
                 possibilities.push(knowledge);
             }
-        }
+        } // gets all possibilities
 
-        possibilities.sort_by_key(|a| a.specificity());
+        possibilities.sort_by_key(|a| a.specificity()); // sorts from most interesting to least
 
         possibilities
             .get(query.counter as usize)
             .map(|possibility| possibility.data.as_ref())
     }
 
-    /// Adds data to the inbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
+    /// Adds data to the inbound [`Channel`] of the [`Agent`] referenced by the parameter "agent"
+    /// data here is the parameter "message"
     pub fn add_to_inbound(
         &mut self,
         agent_name: AgentName,
@@ -219,19 +225,21 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
     pub fn next_state(&mut self, agent_name: AgentName) -> Result<(), Error> {
         let agent = self.find_agent_mut(agent_name)?;
-        agent.put_mut().progress(&agent_name)
+        agent.put_mut().progress(&agent_name) // harness makes execution of the PUT progress
     }
 
     /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
+    /// again, data is a message
     /// See [`MemoryStream::take_message_from_outbound`]
     pub fn take_message_from_outbound(
         &mut self,
         agent_name: AgentName,
     ) -> Result<Option<MessageResult<PB::ProtocolMessage, PB::OpaqueProtocolMessage>>, Error> {
-        let agent = self.find_agent_mut(agent_name)?;
-        agent.put_mut().take_message_from_outbound()
+        let agent = self.find_agent_mut(agent_name)?; // finds the channel
+        agent.put_mut().take_message_from_outbound() // note : depends on the PUT protocol
     }
 
+    // harness adds a channel for each agent (in agents)
     fn add_agent(&mut self, agent: Agent<PB>) -> AgentName {
         let name = agent.name();
         self.agents.push(agent);
@@ -322,19 +330,20 @@ pub struct Trace<M: Matcher> {
 /// *AgentDescriptors* which act like a blueprint to spawn [`Agent`]s with a corresponding server
 /// or client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
 impl<M: Matcher> Trace<M> {
+    // puts agents in Trace into TraceContext.agents
     fn spawn_agents<PB: ProtocolBehavior>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error> {
         for descriptor in &self.descriptors {
             let name = if let Some(reusable) = ctx
                 .agents
                 .iter_mut()
-                .find(|existing| existing.put().is_reusable_with(descriptor))
+                .find(|existing| existing.put().is_reusable_with(descriptor)) // check if it is reusable
             {
                 // rename if it already exists and we want to reuse
                 reusable.rename(descriptor.name)?;
                 descriptor.name
             } else {
                 // only spawn completely new if not yet existing
-                ctx.new_agent(descriptor)?
+                ctx.new_agent(descriptor)? // adds new agent
             };
 
             if ctx.deterministic_put {
@@ -363,9 +372,10 @@ impl<M: Matcher> Trace<M> {
         for (i, step) in steps.iter().enumerate() {
             debug!("Executing step #{}", i);
 
-            step.action.execute(step, ctx)?;
+            step.action.execute(step, ctx)?; // THIS is where TraceContext comes into play
 
             // Output after each InputAction step
+            // why ???
             match step.action {
                 Action::Input(_) => {
                     let output_step = &OutputAction::<M>::new_step(step.agent);
@@ -500,13 +510,14 @@ impl<M: Matcher> OutputAction<M> {
         }
     }
 
+    // called when you want to execute an action (output)
     fn output<PB>(&self, step: &Step<M>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        ctx.next_state(step.agent)?;
+        ctx.next_state(step.agent)?; // forwards the state machine
 
-        while let Some(message_result) = ctx.take_message_from_outbound(step.agent)? {
+        while let Some(message_result) = ctx.take_message_from_outbound(step.agent)? { // reads message
             let matcher = message_result.create_matcher::<PB>();
 
             let MessageResult(message, opaque_message) = message_result;
@@ -581,12 +592,12 @@ impl<M: Matcher> InputAction<M> {
         PB: ProtocolBehavior<Matcher = M>,
     {
         // message controlled by the attacker
-        let evaluated = self.recipe.evaluate(ctx)?;
+        let evaluated = self.recipe.evaluate(ctx)?; // reads term
 
         if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
             msg.debug("Input message");
 
-            ctx.add_to_inbound(step.agent, &msg.create_opaque())?;
+            ctx.add_to_inbound(step.agent, &msg.create_opaque())?; // adds message to inbound channel
         } else if let Some(opaque_message) = evaluated
             .as_ref()
             .downcast_ref::<PB::OpaqueProtocolMessage>()
@@ -600,7 +611,7 @@ impl<M: Matcher> InputAction<M> {
             .into());
         }
 
-        ctx.next_state(step.agent)
+        ctx.next_state(step.agent) // forwards state machine
     }
 }
 
