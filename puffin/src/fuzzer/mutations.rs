@@ -80,7 +80,7 @@ where
             ) {
                 let term_a_cloned = term_a.clone();
                 if let Some(term_b_mut) = find_term_mut(trace, &trace_path_b) {
-                    let term_b_cloned = term_b_mut.clone();
+                    let term_b_cloned = term_b_mut.clone(); // swaps
                     term_b_mut.mutate(term_a_cloned);
                     if let Some(trace_a_mut) = find_term_mut(trace, &trace_path_a) {
                         trace_a_mut.mutate(term_b_cloned);
@@ -92,6 +92,7 @@ where
         Ok(MutationResult::Skipped)
     }
 }
+
 impl<S> Named for SwapMutator<S>
 where
     S: HasRand,
@@ -435,6 +436,7 @@ where
 }
 
 /// GENERATE: Generates a previously-unseen term using a term zoo
+/// and replaces a term with the generated one
 pub struct GenerateMutator<S, M: Matcher>
 where
     S: HasRand,
@@ -446,6 +448,7 @@ where
     signature: &'static Signature,
     phantom_s: std::marker::PhantomData<S>,
 }
+
 impl<S, M: Matcher> GenerateMutator<S, M>
 where
     S: HasRand,
@@ -509,6 +512,10 @@ where
         std::any::type_name::<GenerateMutator<S, M>>()
     }
 }
+
+
+/// *******************************************************************************************************
+
 
 pub mod util {
     use libafl::bolts::rands::Rand;
@@ -594,6 +601,7 @@ pub mod util {
     pub type TracePath = (StepIndex, TermPath);
 
     /// https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
+    /// chooses a random sample, used in function choose, used in mutations
     fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
         trace: &'a Trace<M>,
         filter: P,
@@ -758,6 +766,9 @@ pub mod util {
         reservoir_sample(trace, filter, constraints, rand).map(|ret| ret.1)
     }
 }
+
+
+/// ***********************************************************************************************
 
 #[cfg(test)]
 mod tests {

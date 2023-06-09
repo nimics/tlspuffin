@@ -209,6 +209,7 @@ where
             .unwrap()
         });
 
+        // make fuzzer config
         let FuzzerConfig {
             initial_corpus_dir,
             max_iters,
@@ -221,7 +222,9 @@ where
         } = self.config;
 
         // FIXME let mutator = PuffinScheduledMutator::new(self.mutations.unwrap(), max_mutations_per_iteration);
+
         let mutator = StdScheduledMutator::new(self.mutations.unwrap());
+        
         let mut stages = tuple_list!(
             // FIXMEPuffinMutationalStage::new(mutator, max_iterations_per_stage),
             StdMutationalStage::new(mutator),
@@ -430,9 +433,11 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
      -> Result<(), Error> {
         let harness_fn = &mut harness::harness::<PB>;
 
+        // makes new client
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
+        //initializes
         builder = builder
-            .with_mutations(trace_mutations(
+            .with_mutations(trace_mutations( // mutations
                 *min_trace_length,
                 *max_trace_length,
                 *term_constraints,
