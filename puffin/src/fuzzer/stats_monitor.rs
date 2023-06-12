@@ -135,7 +135,7 @@ where
         (self.print_fn)(fmt);
 
         Statistics::Client(ClientStatistics {
-            id: sender_id,
+            id: sender_id.0,
             time: SystemTime::now(),
             trace,
             errors: error_counter,
@@ -430,10 +430,6 @@ where
 
     fn display(&mut self, event_msg: String, sender_id: ClientId) {
         self.log_count += 1;
-
-        if self.log_count % 100 != 0 {
-            return;
-        }
 
         self.global(&event_msg);
         self.client(&event_msg, sender_id);
