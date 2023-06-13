@@ -103,7 +103,7 @@ impl<M: Matcher> Term<M> {
         }
     }
 
-    pub fn evaluate<PB: ProtocolBehavior>(
+    pub fn evaluate<PB: ProtocolBehavior>( // mapper
         &self,
         context: &TraceContext<PB>,
     ) -> Result<Box<dyn Any>, Error>
@@ -129,7 +129,7 @@ impl<M: Matcher> Term<M> {
                     }
                 }
                 let dynamic_fn = &func.dynamic_fn();
-                let result: Result<Box<dyn Any>, FnError> = dynamic_fn(&dynamic_args);
+                let result: Result<Box<dyn Any>, FnError> = dynamic_fn(&dynamic_args); // dynamic_args are def in tlspuffin
                 result.map_err(Error::Fn)
             }
         }

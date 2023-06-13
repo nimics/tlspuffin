@@ -27,6 +27,7 @@ type ConcreteExecutor<'harness, H, OT, S> = TimeoutExecutor<InProcessExecutor<'h
 
 type ConcreteState<C, R, SC, I> = StdState<I, C, R, SC>;
 
+// represents different configs
 #[derive(Clone, Debug)]
 pub struct FuzzerConfig {
     pub initial_corpus_dir: PathBuf,
@@ -199,7 +200,7 @@ where
         self
     }
 
-    fn run_client(mut self) -> Result<(), Error> {
+    fn run_client(mut self) -> Result<(), Error> { //takes builder
         let mut feedback = self.feedback.unwrap();
         let mut objective = self.objective.unwrap();
 
@@ -407,7 +408,7 @@ where
 }
 
 /// Starts the fuzzing loop
-pub fn start<PB: ProtocolBehavior + Clone + 'static>(
+pub fn start<PB: ProtocolBehavior + Clone + 'static>( // tlspuffin done une instance de PB : tlspuffin/protocol.rs -> impl ProtocolBehavior
     config: FuzzerConfig,
     log_handle: Handle,
 ) -> Result<(), Error> {
@@ -435,7 +436,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
 
     info!("Config: {:?}\n\nlog_handle: {:?}", &config, &log_handle);
 
-    let mut run_client = |state: Option<StdState<Trace<PB::Matcher>, _, _, _>>,
+    let mut run_client = |state: Option<StdState<Trace<PB::Matcher>, _, _, _>>, 
                           event_manager: LlmpRestartingEventManager<_, StdShMemProvider>,
                           _core_id: CoreId|
      -> Result<(), Error> {
@@ -451,7 +452,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
                 *term_constraints,
                 *fresh_zoo_after,
                 PB::signature(),
-            ))
+            )) // function in mutations
             .with_initial_inputs(PB::create_corpus())
             .with_rand(StdRand::new())
             .with_corpus(
@@ -523,6 +524,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
         let cores = Cores::from_cmdline(config.core_definition.as_str()).unwrap();
         let configuration: EventConfig = "launcher default".into();
         let sh_mem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
+        // shared memory initialized
 
         if *monitor {
             Launcher::builder()
@@ -550,7 +552,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
         } else {
             Launcher::builder()
                 .shmem_provider(sh_mem_provider)
-                .configuration(configuration)
+                .configuration(configuration) // how u config the fuzzer
                 .monitor(
                     StatsMonitor::new(
                         |s| {

@@ -7,6 +7,7 @@ use crate::{
     trace::Trace,
 };
 
+// returns list of mutations
 pub fn trace_mutations<S, M: Matcher>(
     min_trace_length: usize,
     max_trace_length: usize,
@@ -20,7 +21,7 @@ pub fn trace_mutations<S, M: Matcher>(
        ReplaceMatchMutator<S>,
        RemoveAndLiftMutator<S>,
        GenerateMutator<S, M>,
-       SwapMutator<S>
+       SwapMutator<S> // Add havoc
    )
 where
     S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
@@ -32,7 +33,7 @@ where
         ReplaceMatchMutator::new(constraints, signature),
         RemoveAndLiftMutator::new(constraints),
         GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
-        SwapMutator::new(constraints)
+        SwapMutator::new(constraints)                                           //add havoc
     )
 }
 
@@ -513,9 +514,7 @@ where
     }
 }
 
-
 /// *******************************************************************************************************
-
 
 pub mod util {
     use libafl::bolts::rands::Rand;
@@ -766,7 +765,6 @@ pub mod util {
         reservoir_sample(trace, filter, constraints, rand).map(|ret| ret.1)
     }
 }
-
 
 /// ***********************************************************************************************
 
