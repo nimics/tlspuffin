@@ -200,7 +200,8 @@ where
         self
     }
 
-    fn run_client(mut self) -> Result<(), Error> { //takes builder
+    fn run_client(mut self) -> Result<(), Error> {
+        //takes builder
         let mut feedback = self.feedback.unwrap();
         let mut objective = self.objective.unwrap();
 
@@ -231,7 +232,7 @@ where
         // FIXME let mutator = PuffinScheduledMutator::new(self.mutations.unwrap(), max_mutations_per_iteration);
 
         let mutator = StdScheduledMutator::new(self.mutations.unwrap());
-        
+
         let mut stages = tuple_list!(
             // FIXMEPuffinMutationalStage::new(mutator, max_iterations_per_stage),
             StdMutationalStage::new(mutator),
@@ -408,7 +409,8 @@ where
 }
 
 /// Starts the fuzzing loop
-pub fn start<PB: ProtocolBehavior + Clone + 'static>( // tlspuffin done une instance de PB : tlspuffin/protocol.rs -> impl ProtocolBehavior
+pub fn start<PB: ProtocolBehavior + Clone + 'static>(
+    // tlspuffin done une instance de PB : tlspuffin/protocol.rs -> impl ProtocolBehavior
     config: FuzzerConfig,
     log_handle: Handle,
 ) -> Result<(), Error> {
@@ -436,7 +438,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>( // tlspuffin done une inst
 
     info!("Config: {:?}\n\nlog_handle: {:?}", &config, &log_handle);
 
-    let mut run_client = |state: Option<StdState<Trace<PB::Matcher>, _, _, _>>, 
+    let mut run_client = |state: Option<StdState<Trace<PB::Matcher>, _, _, _>>,
                           event_manager: LlmpRestartingEventManager<_, StdShMemProvider>,
                           _core_id: CoreId|
      -> Result<(), Error> {
@@ -446,7 +448,8 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>( // tlspuffin done une inst
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
         //initializes
         builder = builder
-            .with_mutations(trace_mutations( // mutations
+            .with_mutations(trace_mutations(
+                // mutations
                 *min_trace_length,
                 *max_trace_length,
                 *term_constraints,
