@@ -148,6 +148,18 @@ impl ProtocolMessage<OpaqueMessage> for Message {
             }
         })
     }
+
+    // micol : two following functions return the internal bytes map of message
+
+    fn get_bytes(&self) -> &[u8] {
+        let vec = self.payload.unwrap_payload().0;
+        return &vec[..];
+    }
+
+    fn get_bytes_mut(&mut self) -> &mut Vec<u8> {
+        let vec = &mut self.payload.unwrap_payload().0;
+        vec
+    }
 }
 
 impl ProtocolMessageDeframer for MessageDeframer {
@@ -168,6 +180,14 @@ impl OpaqueProtocolMessage for OpaqueMessage {
 
     fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
         Ok(vec![Box::new(self.clone())])
+    }
+
+    fn get_bytes(&self) -> &[u8] {
+        &self.payload.0[..]
+    }
+
+    fn get_bytes_mut(&mut self) -> &mut Vec<u8> {
+        &mut self.payload.0
     }
 }
 

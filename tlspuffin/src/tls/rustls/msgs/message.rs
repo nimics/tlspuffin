@@ -74,6 +74,15 @@ impl MessagePayload {
             Self::Heartbeat(_) => ContentType::Heartbeat,
         }
     }
+
+    //micol : next two functions to get payload
+
+    pub fn unwrap_payload(&self) -> &Payload {
+        match *self {
+            Self::ApplicationData(payload) => return &payload,
+            _ => panic!("I am not sure how to get payload !!"),
+        }
+    }
 }
 
 /// A TLS frame, named TLSPlaintext in the standard.

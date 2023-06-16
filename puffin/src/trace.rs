@@ -199,7 +199,8 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
             if query_type_id == data.type_id() // internal type
                 && query.agent_name == knowledge.agent_name // agent
-                && knowledge.matcher.matches(&query.matcher) // TLS type
+                && knowledge.matcher.matches(&query.matcher)
+            // TLS type
             {
                 possibilities.push(knowledge);
             }
@@ -336,7 +337,8 @@ impl<M: Matcher> Trace<M> {
             let name = if let Some(reusable) = ctx
                 .agents
                 .iter_mut()
-                .find(|existing| existing.put().is_reusable_with(descriptor)) // check if it is reusable
+                .find(|existing| existing.put().is_reusable_with(descriptor))
+            // check if it is reusable
             {
                 // rename if it already exists and we want to reuse
                 reusable.rename(descriptor.name)?;
@@ -448,6 +450,8 @@ impl<M: Matcher> fmt::Display for Trace<M> {
     }
 }
 
+// micol : add trait HasBytesVec
+
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 #[serde(bound = "M: Matcher")]
 pub struct Step<M: Matcher> {
@@ -517,7 +521,8 @@ impl<M: Matcher> OutputAction<M> {
     {
         ctx.next_state(step.agent)?; // forwards the state machine
 
-        while let Some(message_result) = ctx.take_message_from_outbound(step.agent)? { // reads message
+        while let Some(message_result) = ctx.take_message_from_outbound(step.agent)? {
+            // reads message
             let matcher = message_result.create_matcher::<PB>();
 
             let MessageResult(message, opaque_message) = message_result;

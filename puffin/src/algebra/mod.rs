@@ -437,6 +437,16 @@ pub mod test_signature {
         fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
             panic!("Not implemented for test stub");
         }
+
+        // micol : implemented trait
+
+        fn get_bytes(&self) -> &[u8] {
+            panic!("Not implemented for test stub");
+        }
+
+        fn get_bytes_mut(&mut self) -> &mut Vec<u8> {
+            panic!("Not implemented for test stub");
+        }
     }
 
     pub struct TestMessage;
@@ -473,6 +483,16 @@ pub mod test_signature {
         }
 
         fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
+            panic!("Not implemented for test stub");
+        }
+
+        // micol : implemented trait
+
+        fn get_bytes(&self) -> &[u8] {
+            panic!("Not implemented for test stub");
+        }
+
+        fn get_bytes_mut(&mut self) -> &mut Vec<u8> {
             panic!("Not implemented for test stub");
         }
     }

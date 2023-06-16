@@ -7,6 +7,8 @@ use crate::{
     trace::Trace,
 };
 
+use libafl::mutators::mutations;
+
 // returns list of mutations
 pub fn trace_mutations<S, M: Matcher>(
     min_trace_length: usize,
@@ -21,7 +23,8 @@ pub fn trace_mutations<S, M: Matcher>(
        ReplaceMatchMutator<S>,
        RemoveAndLiftMutator<S>,
        GenerateMutator<S, M>,
-       SwapMutator<S> // Add havoc
+       SwapMutator<S>
+       //TOCHANGE
    )
 where
     S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
