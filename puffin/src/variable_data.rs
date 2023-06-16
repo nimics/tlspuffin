@@ -6,12 +6,18 @@ use std::{
     fmt::Debug,
 };
 
+// use libafl::inputs::HasBytesVec;
+
+// use crate::algebra::{atoms::Variable, Matcher};
+
 pub trait VariableData: Debug {
     fn boxed(&self) -> Box<dyn VariableData>;
     fn boxed_any(&self) -> Box<dyn Any>;
     fn type_id(&self) -> TypeId;
     fn type_name(&self) -> &'static str;
 }
+
+//TOCHANGE : add bytes and bytes_mut functions : ACTUALLY NVM
 
 /// A VariableData is cloneable and has a `'static` type. This data type is used throughout
 /// tlspuffin to handle data of dynamic size.

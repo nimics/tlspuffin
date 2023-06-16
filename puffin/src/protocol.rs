@@ -16,14 +16,17 @@ pub trait ProtocolMessage<O: OpaqueProtocolMessage>: Clone + Debug + Codec {
     fn create_opaque(&self) -> O;
     fn debug(&self, info: &str);
     fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error>;
+    fn get_bytes(&self) -> &[u8]; // micol : recuperates the internal bytes map of message
+    fn get_bytes_mut(&mut self) -> &mut Vec<u8>; // micol : recuperates the internal bytes map as mutable borrow
 }
 
 /// A non-structured version of [`ProtocolMessage`]. This can be used for example for encrypted messages
 /// which do not have a structure.
 pub trait OpaqueProtocolMessage: Clone + Debug + Codec {
     fn debug(&self, info: &str);
-
     fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error>;
+    fn get_bytes(&self) -> &[u8]; // micol : recuperates the internal bytes map of message
+    fn get_bytes_mut(&mut self) -> &mut Vec<u8>; // micol : recuperates the internal bytes map as mutable borrow
 }
 
 /// Deframes a stream of bytes into distinct [OpaqueProtocolMessages](OpaqueProtocolMessage).
