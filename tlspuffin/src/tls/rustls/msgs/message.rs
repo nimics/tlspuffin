@@ -78,8 +78,15 @@ impl MessagePayload {
     //micol : next two functions to get payload
 
     pub fn unwrap_payload(&self) -> &Payload {
-        match *self {
-            Self::ApplicationData(payload) => return &payload,
+        match self {
+            Self::ApplicationData(payload) => return payload,
+            _ => panic!("I am not sure how to get payload !!"),
+        }
+    }
+
+    pub fn unwrap_payload_mut(&mut self) -> &mut Payload {
+        match self {
+            Self::ApplicationData(payload) => return payload,
             _ => panic!("I am not sure how to get payload !!"),
         }
     }

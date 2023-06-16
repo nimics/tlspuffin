@@ -152,13 +152,11 @@ impl ProtocolMessage<OpaqueMessage> for Message {
     // micol : two following functions return the internal bytes map of message
 
     fn get_bytes(&self) -> &[u8] {
-        let vec = self.payload.unwrap_payload().0;
-        return &vec[..];
+        &self.payload.unwrap_payload().0[..]
     }
 
     fn get_bytes_mut(&mut self) -> &mut Vec<u8> {
-        let vec = &mut self.payload.unwrap_payload().0;
-        vec
+        &mut self.payload.unwrap_payload_mut().0
     }
 }
 
