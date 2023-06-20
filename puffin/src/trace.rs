@@ -458,9 +458,7 @@ impl<M: Matcher> fmt::Display for Trace<M> {
 
 impl<M: Matcher> HasBytesVec for Trace<M> {
     fn bytes(&self) -> &[u8] {
-        //choose randomly a term
         // filter steps by only inputs
-        // let steps = &mut self.steps.iter().filter(| step | match step.action { Input => true, Output => false, } ).collect();
         let steps = self.steps;
         steps
             .iter()
@@ -473,35 +471,45 @@ impl<M: Matcher> HasBytesVec for Trace<M> {
         if length == 0 {
             &[]
         } else {
+            // choose a random input
             let term_chosen = match &steps[(0..length).choose(&mut thread_rng()).unwrap()].action {
                 Action::Input(i) => i.recipe,
                 Action::Output(_) => panic!("I should have filtered outputs out"),
             };
-            //choose randomly a leaf in the term tree
+            // choose randomly a sub term in the term tree
+            // work on implementation
+
+            /* choose randomly a leaf in the term tree
             let leaves: Vec<Variable<M>> = Vec::new();
-            fn deep_search(term: Term<M>, leaves: Vec<Variable<M>>) -> () {
+            fn deep_search<N: Matcher>(term: Term<N>, leaves: Vec<Variable<N>>) -> () {
                 match term {
-                    Term::Application(_, next_term) => deep_search(next_term, leaves),
+                    Term::Application(_, next_term) => {
+                        next_term.into_iter().map(|t| deep_search(t, leaves));
+                    }
                     Term::Variable(v) => leaves.push(v),
                 }
             }
             deep_search(term_chosen, leaves);
-            let var_chosen = &leaves[(0..leaves.len()).choose(&mut thread_rng()).unwrap()];
+            length = leaves.len();
+            if length == 0 {
+                &[]
+            } else {
+                let var_chosen = &leaves[(0..length).choose(&mut thread_rng()).unwrap()];*/
 
             //take corresponding message or opaque message
             //call get_byte (mod protocol)
 
-            let evaluated = var_chosen.evaluate(ctx)?;
+            let evaluated = var_chosen.evaluate(ctx);
 
             if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
                 msg.debug("Input message");
 
-                msg.get_bytes()
+                msg.bytes()
             } else if let Some(opaque_message) = evaluated
                 .as_ref()
                 .downcast_ref::<PB::OpaqueProtocolMessage>()
             {
-                opaque_message.get_bytes()
+                opaque_message.bytes_mut()
             } else {
                 panic!("variable is not a `ProtocolMessage`, `OpaqueProtocolMessage`! and this should not happen");
             }
