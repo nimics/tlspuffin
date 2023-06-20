@@ -27,6 +27,19 @@ use crate::{
     },
 };
 
+use libafl::HasBytesVec;
+
+impl HasBytesVec for Message {
+    // micol : two following functions return the internal bytes map of message
+    fn bytes(&self) -> &[u8] {
+        &self.payload.unwrap_payload().0[..]
+    }
+
+    fn bytes_mut(&mut self) -> &mut Vec<u8> {
+        &mut self.payload.unwrap_payload_mut().0
+    }
+}
+
 impl ProtocolMessage<OpaqueMessage> for Message {
     fn create_opaque(&self) -> OpaqueMessage {
         msgs::message::PlainMessage::from(self.clone()).into_unencrypted_opaque()
@@ -147,16 +160,6 @@ impl ProtocolMessage<OpaqueMessage> for Message {
                 vec![Box::new(self.clone()), Box::new(tls12encrypted.0.clone())]
             }
         })
-    }
-
-    // micol : two following functions return the internal bytes map of message
-
-    fn get_bytes(&self) -> &[u8] {
-        &self.payload.unwrap_payload().0[..]
-    }
-
-    fn get_bytes_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.payload.unwrap_payload_mut().0
     }
 }
 
