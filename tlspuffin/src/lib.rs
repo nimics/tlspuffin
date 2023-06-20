@@ -116,6 +116,8 @@ pub mod tls;
 #[cfg(feature = "wolfssl-binding")]
 pub mod wolfssl;
 
+pub use libafl; //micol
+
 #[cfg(test)]
 mod integration_tests;
 #[cfg(test)]
