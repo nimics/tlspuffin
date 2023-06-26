@@ -23,6 +23,7 @@ pub trait ProtocolMessage<O: OpaqueProtocolMessage>: Clone + Debug + Codec + Has
 
 /// A non-structured version of [`ProtocolMessage`]. This can be used for example for encrypted messages
 /// which do not have a structure.
+/// micol : added trait HasBytesVec
 pub trait OpaqueProtocolMessage: Clone + Debug + Codec + HasBytesVec {
     fn debug(&self, info: &str);
     fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error>;

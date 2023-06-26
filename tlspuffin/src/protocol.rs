@@ -32,11 +32,11 @@ use libafl::HasBytesVec;
 impl HasBytesVec for Message {
     // micol : two following functions return the internal bytes map of message
     fn bytes(&self) -> &[u8] {
-        &self.payload.unwrap_payload().0[..]
+        &self.payload.0[..]
     }
 
     fn bytes_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.payload.unwrap_payload_mut().0
+        &mut self.payload.0
     }
 }
 
@@ -174,6 +174,16 @@ impl ProtocolMessageDeframer for MessageDeframer {
     }
 }
 
+impl HasBytesVec for OpaqueMessage {
+    fn bytes(&self) -> &[u8] {
+        &self.payload.unwrap_payload().0[..]
+    }
+
+    fn bytes_mut(&mut self) -> &mut Vec<u8> {
+        &mut self.payload.unwrap_payload_mut().0
+    }
+}
+
 impl OpaqueProtocolMessage for OpaqueMessage {
     fn debug(&self, info: &str) {
         debug_opaque_message_with_info(info, self);
@@ -181,14 +191,6 @@ impl OpaqueProtocolMessage for OpaqueMessage {
 
     fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
         Ok(vec![Box::new(self.clone())])
-    }
-
-    fn get_bytes(&self) -> &[u8] {
-        &self.payload.0[..]
-    }
-
-    fn get_bytes_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.payload.0
     }
 }
 

@@ -16,6 +16,7 @@ use crate::{
         dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
         remove_prefix, Matcher,
     },
+    protocol::ProtocolBehavior,
     trace::Query,
 };
 
@@ -332,4 +333,27 @@ mod fn_container {
             )
         }
     }
+}
+
+// from here on, micol
+
+pub struct Message<PB> {
+    /// Unique ID of this variable. Uniqueness is guaranteed across all[`Term`]sever created. Cloning
+    /// change this ID.
+    pub unique_id: u32,
+    /// ID of this variable. This id stays the same during cloning.
+    pub resistant_id: u32,
+    /// the message
+    /// it needs to be a message for evaluated function
+    pub message: <PB as ProtocolBehavior>::ProtocolMessage,
+}
+
+pub struct OpaqueMessage<PB> {
+    /// Unique ID of this variable. Uniqueness is guaranteed across all[`Term`]sever created. Cloning
+    /// change this ID.
+    pub unique_id: u32,
+    /// ID of this variable. This id stays the same during cloning.
+    pub resistant_id: u32,
+    /// the message
+    pub message: <PB as ProtocolBehavior>::OpaqueProtocolMessage,
 }

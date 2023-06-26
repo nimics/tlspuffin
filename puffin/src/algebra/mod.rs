@@ -122,6 +122,8 @@ pub mod test_signature {
         io::Read,
     };
 
+    use libafl::prelude::HasBytesVec;
+
     use crate::{
         agent::{AgentDescriptor, AgentName, TLSVersion},
         algebra::{dynamic_function::TypeShape, error::FnError, AnyMatcher, Term},
@@ -429,22 +431,22 @@ pub mod test_signature {
         }
     }
 
+    impl HasBytesVec for TestOpaqueMessage {
+        fn bytes(&self) -> &[u8] {
+            panic!("Not implemented for test stub");
+        }
+
+        fn bytes_mut(&mut self) -> &mut Vec<u8> {
+            panic!("Not implemented for test stub");
+        }
+    }
+
     impl OpaqueProtocolMessage for TestOpaqueMessage {
         fn debug(&self, _info: &str) {
             panic!("Not implemented for test stub");
         }
 
         fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
-            panic!("Not implemented for test stub");
-        }
-
-        // micol : implemented trait
-
-        fn get_bytes(&self) -> &[u8] {
-            panic!("Not implemented for test stub");
-        }
-
-        fn get_bytes_mut(&mut self) -> &mut Vec<u8> {
             panic!("Not implemented for test stub");
         }
     }
@@ -473,6 +475,16 @@ pub mod test_signature {
         }
     }
 
+    impl HasBytesVec for TestMessage {
+        fn bytes(&self) -> &[u8] {
+            panic!("Not implemented for test stub");
+        }
+
+        fn bytes_mut(&mut self) -> &mut Vec<u8> {
+            panic!("Not implemented for test stub");
+        }
+    }
+
     impl ProtocolMessage<TestOpaqueMessage> for TestMessage {
         fn create_opaque(&self) -> TestOpaqueMessage {
             panic!("Not implemented for test stub");
@@ -483,16 +495,6 @@ pub mod test_signature {
         }
 
         fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
-            panic!("Not implemented for test stub");
-        }
-
-        // micol : implemented trait
-
-        fn get_bytes(&self) -> &[u8] {
-            panic!("Not implemented for test stub");
-        }
-
-        fn get_bytes_mut(&mut self) -> &mut Vec<u8> {
             panic!("Not implemented for test stub");
         }
     }

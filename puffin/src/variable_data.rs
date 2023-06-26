@@ -17,8 +17,6 @@ pub trait VariableData: Debug {
     fn type_name(&self) -> &'static str;
 }
 
-//TOCHANGE : add bytes and bytes_mut functions : ACTUALLY NVM
-
 /// A VariableData is cloneable and has a `'static` type. This data type is used throughout
 /// tlspuffin to handle data of dynamic size.
 impl<T: 'static> VariableData for T

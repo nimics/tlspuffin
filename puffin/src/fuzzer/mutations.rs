@@ -7,7 +7,7 @@ use crate::{
     trace::Trace,
 };
 
-use libafl::mutators::mutations;
+use libafl::mutators::{mutations, Mutator};
 
 // returns list of mutations
 pub fn trace_mutations<S, M: Matcher>(
@@ -514,6 +514,55 @@ where
 {
     fn name(&self) -> &str {
         std::any::type_name::<GenerateMutator<S, M>>()
+    }
+}
+
+/// ******************************************************************************************************
+/// begin havoc mutations
+/// ******************************************************************************************************
+
+/// BITFLIP : Bitflip mutation
+
+pub struct BitFlipDY<S>
+where
+    S: HasRand,
+{
+    constraints: TermConstraints,
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> BitFlipDY<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new(constraints: TermConstraints) -> Self {
+        Self {
+            constraints,
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher> Mutator<Trace<M>, S> for BitFlipDY<S>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Input,
+        _stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+    }
+}
+
+impl<S> Named for BitFlipDY<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<BitFlipDY<S>>()
     }
 }
 

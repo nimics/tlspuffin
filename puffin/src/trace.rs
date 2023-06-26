@@ -24,18 +24,16 @@ use std::{
 
 use libafl::prelude::*; //micol
 use log::{debug, trace, warn};
-use rand::prelude::*; //micol
 use serde::{Deserialize, Serialize};
 
 #[allow(unused)] // used in docs
 use crate::stream::Channel;
 use crate::{
     agent::{Agent, AgentDescriptor, AgentName},
-    algebra::{
-        atoms::Variable, dynamic_function::TypeShape, error::FnError, remove_prefix, Matcher, Term,
-    }, // micol : added Variable
+    algebra::{dynamic_function::TypeShape, error::FnError, remove_prefix, Matcher, Term},
     claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
     error::Error,
+    fuzzer::mutations::util::*,
     protocol::{MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
     put::{PutDescriptor, PutOptions},
     put_registry::{Factory, PutRegistry},
@@ -454,70 +452,118 @@ impl<M: Matcher> fmt::Display for Trace<M> {
     }
 }
 
-// micol : add trait HasBytesVec to Trace
+// micol : type input
 
-impl<M: Matcher> HasBytesVec for Trace<M> {
+pub struct TraceInput<'a, M: Matcher, PB: ProtocolBehavior> {
+    pub trace: Trace<M>,
+    pub context: TraceContext<PB>,
+}
+
+/* impl<M: Matcher, PB, R: HasRand> HasBytesVec for Input<'_, M, PB, R>
+where
+    PB: ProtocolBehavior<Matcher = M>,
+{
     fn bytes(&self) -> &[u8] {
-        // filter steps by only inputs
-        let steps = self.steps;
-        steps
-            .iter()
-            .filter(|step| match step.action {
-                Action::Input(_) => true,
-                Action::Output(_) => false,
-            })
-            .collect();
-        let length = steps.len();
-        if length == 0 {
-            &[]
-        } else {
-            // choose a random input
-            let term_chosen = match &steps[(0..length).choose(&mut thread_rng()).unwrap()].action {
-                Action::Input(i) => i.recipe,
-                Action::Output(_) => panic!("I should have filtered outputs out"),
-            };
-            // choose randomly a sub term in the term tree
-            // work on implementation
+        let rand = self.rand.rand_mut();
+        let ctx = &self.context;
 
-            /* choose randomly a leaf in the term tree
-            let leaves: Vec<Variable<M>> = Vec::new();
-            fn deep_search<N: Matcher>(term: Term<N>, leaves: Vec<Variable<N>>) -> () {
-                match term {
-                    Term::Application(_, next_term) => {
-                        next_term.into_iter().map(|t| deep_search(t, leaves));
-                    }
-                    Term::Variable(v) => leaves.push(v),
+        //choose a sub term at random
+        if let Some((chosen_term, path)) =
+            choose(&self.trace, TermConstraints::default(), rand).cloned()
+        {
+            // turn term into a message
+            let evaluated = chosen_term
+                .evaluate(&ctx)
+                .expect("evaluation failed, am I supposed to panic ?");
+
+            // replace the term in the tree by Message or OpaqueMessage
+            if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
+                chosen_term.replace(self.trace, path, msg);
+                //call bytes from mod protocol
+                msg.bytes()
+            } else {
+                if let Some(opaque_message) = evaluated
+                    .as_ref()
+                    .downcast_ref::<PB::OpaqueProtocolMessage>()
+                {
+                    chosen_term.replace_opaque(self.trace, path, opaque_message);
+                    // call bytes from mod protocol
+                    &opaque_message.bytes()
+                } else {
+                    panic!("variable is not a `ProtocolMessage`, `OpaqueProtocolMessage`! and this should not happen");
                 }
             }
-            deep_search(term_chosen, leaves);
-            length = leaves.len();
-            if length == 0 {
-                &[]
-            } else {
-                let var_chosen = &leaves[(0..length).choose(&mut thread_rng()).unwrap()];*/
+        } else {
+            &[]
+        }
+    }
+}
+
+impl<M: Matcher, PB, R: HasRand> HasBytesVec for Input<'_, M, PB, R>
+where
+    PB: ProtocolBehavior<Matcher = M>,
+{
+    fn bytes(&self) -> &[u8] {
+
+        //do i need cloned ?
+        {
 
             //take corresponding message or opaque message
-            //call get_byte (mod protocol)
-
-            let evaluated = var_chosen.evaluate(ctx);
-
             if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
-                msg.debug("Input message");
-
-                msg.bytes()
-            } else if let Some(opaque_message) = evaluated
-                .as_ref()
-                .downcast_ref::<PB::OpaqueProtocolMessage>()
-            {
-                opaque_message.bytes_mut()
+                //call bytes from mod protocol
+                let slice = msg.bytes().clone();
+                &slice
             } else {
-                panic!("variable is not a `ProtocolMessage`, `OpaqueProtocolMessage`! and this should not happen");
+                if let Some(opaque_message) = evaluated
+                    .as_ref()
+                    .downcast_ref::<PB::OpaqueProtocolMessage>()
+                {
+                    // call bytes from mod protocol
+                    &opaque_message.bytes()
+                } else {
+                    panic!("variable is not a `ProtocolMessage`, `OpaqueProtocolMessage`! and this should not happen");
+                }
             }
+        } else {
+
         }
     }
 
-    fn bytes_mut(&mut self) -> &mut Vec<u8> {}
+    fn bytes_mut(&mut self) -> &mut Vec<u8> {
+        let rand = self.rand.rand_mut();
+        let ctx = &self.context;
+        //choose a sub term at random
+        if let Some(chosen_term) =
+            choose_term(&self.trace, TermConstraints::default(), rand).cloned()
+        //do i need cloned ?
+        {
+            let evaluated = chosen_term
+                .evaluate(&ctx)
+                .expect("evaluation failed, am I supposed to panic ?");
+            //take corresponding message or opaque message
+            if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
+                msg.debug("Input message");
+
+                //call bytes (mod protocol)
+                msg.bytes_mut()
+            } else {
+                if let Some(opaque_message) = evaluated
+                    .as_ref()
+                    .downcast_ref::<PB::OpaqueProtocolMessage>()
+                {
+                    opaque_message.bytes_mut()
+                } else {
+                    panic!("term is not a `ProtocolMessage`, `OpaqueProtocolMessage`! and this should not happen");
+                }
+            }
+        } else {
+            panic!() // I should return an empty mutable vector ?
+        }
+    }
 }
+
+
+    */
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 #[serde(bound = "M: Matcher")]
