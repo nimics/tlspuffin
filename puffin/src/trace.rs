@@ -33,11 +33,10 @@ use crate::{
     algebra::{dynamic_function::TypeShape, error::FnError, remove_prefix, Matcher, Term},
     claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
     error::Error,
-    fuzzer::mutations::util::*,
     protocol::{MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
     put::{PutDescriptor, PutOptions},
     put_registry::{Factory, PutRegistry},
-    variable_data::VariableData,
+    variable_data::{GlobalVariableData, VariableData},
 };
 
 /// When adding some (sub-)message m to ϕ, puffin and tlspuffin
@@ -70,10 +69,13 @@ impl<M: Matcher> Knowledge<M> {
 /// [Knowledge] describes an atomic piece of knowledge inferred
 /// by the [`crate::variable_data::extract_knowledge`] function
 /// [Knowledge] is made of the data, the agent that produced the output, the TLS message type and the internal type.
+#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+#[serde(bound = "M: Matcher")]
+
 pub struct Knowledge<M: Matcher> {
     pub agent_name: AgentName, // agent that produced the output
     pub matcher: Option<M>,
-    pub data: Box<dyn VariableData>,
+    pub data: GlobalVariableData,
 }
 
 impl<M: Matcher> Knowledge<M> {
@@ -322,19 +324,21 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
 #[derive(Clone, Deserialize, Serialize, Hash)]
 #[serde(bound = "M: Matcher")]
-pub struct Trace<M: Matcher> {
+pub struct Trace<M: Matcher, PB: ProtocolBehavior> {
     pub descriptors: Vec<AgentDescriptor>,
-    pub steps: Vec<Step<M>>,
-    pub prior_traces: Vec<Trace<M>>,
+    pub steps: Vec<Step<M, PB>>,
+    pub prior_traces: Vec<Trace<M, PB>>,
+    pub knowledge: Vec<Knowledge<PB::Matcher>>,
+    pub claims: GlobalClaimList<PB::Claim>,
 }
 
 /// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an [`InputAction`].
 /// Each [`Step`]s references an [`Agent`] by name. Furthermore, a trace also has a list of
 /// *AgentDescriptors* which act like a blueprint to spawn [`Agent`]s with a corresponding server
 /// or client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
-impl<M: Matcher> Trace<M> {
+impl<M: Matcher, PB: ProtocolBehavior> Trace<M, PB> {
     // puts agents in Trace into TraceContext.agents
-    fn spawn_agents<PB: ProtocolBehavior>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error> {
+    fn spawn_agents(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error> {
         for descriptor in &self.descriptors {
             let name = if let Some(reusable) = ctx
                 .agents
@@ -362,7 +366,7 @@ impl<M: Matcher> Trace<M> {
         Ok(())
     }
 
-    pub fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    pub fn execute(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
@@ -382,7 +386,7 @@ impl<M: Matcher> Trace<M> {
             // why ???
             match step.action {
                 Action::Input(_) => {
-                    let output_step = &OutputAction::<M>::new_step(step.agent);
+                    let output_step = &OutputAction::<M, PB>::new_step(step.agent);
 
                     output_step.action.execute(output_step, ctx)?;
                 }
@@ -397,7 +401,7 @@ impl<M: Matcher> Trace<M> {
         Ok(())
     }
 
-    pub fn execute_deterministic<PB>(
+    pub fn execute_deterministic(
         &self,
         put_registry: &'static PutRegistry<PB>,
         default_put_options: PutOptions,
@@ -411,7 +415,7 @@ impl<M: Matcher> Trace<M> {
         Ok(ctx)
     }
 
-    pub fn execute_with_non_default_puts<PB>(
+    pub fn execute_with_non_default_puts(
         &self,
         put_registry: &'static PutRegistry<PB>,
         descriptors: &[(AgentName, PutDescriptor)],
@@ -431,18 +435,18 @@ impl<M: Matcher> Trace<M> {
         postcard::to_allocvec(&self)
     }
 
-    pub fn deserialize_postcard(slice: &[u8]) -> Result<Trace<M>, postcard::Error> {
-        postcard::from_bytes::<Trace<M>>(slice)
+    pub fn deserialize_postcard(slice: &[u8]) -> Result<Trace<M, PB>, postcard::Error> {
+        postcard::from_bytes::<Trace<M, PB>>(slice)
     }
 }
 
-impl<M: Matcher> fmt::Debug for Trace<M> {
+impl<M: Matcher, PB: ProtocolBehavior> fmt::Debug for Trace<M, PB> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Trace with {} steps", self.steps.len())
     }
 }
 
-impl<M: Matcher> fmt::Display for Trace<M> {
+impl<M: Matcher, PB: ProtocolBehavior> fmt::Display for Trace<M, PB> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Trace:")?;
         for step in &self.steps {
@@ -450,13 +454,6 @@ impl<M: Matcher> fmt::Display for Trace<M> {
         }
         Ok(())
     }
-}
-
-// micol : type input
-
-pub struct TraceInput<'a, M: Matcher, PB: ProtocolBehavior> {
-    pub trace: Trace<M>,
-    pub context: TraceContext<PB>,
 }
 
 /* impl<M: Matcher, PB, R: HasRand> HasBytesVec for Input<'_, M, PB, R>
@@ -567,9 +564,9 @@ where
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 #[serde(bound = "M: Matcher")]
-pub struct Step<M: Matcher> {
+pub struct Step<M: Matcher, PB: ProtocolBehavior> {
     pub agent: AgentName,
-    pub action: Action<M>,
+    pub action: Action<M, PB>,
 }
 
 /// There are two action types [`OutputAction`] and [`InputAction`] differ.
@@ -583,13 +580,13 @@ pub struct Step<M: Matcher> {
 /// whereas the other action *uses* the available knowledge.
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 #[serde(bound = "M: Matcher")]
-pub enum Action<M: Matcher> {
-    Input(InputAction<M>),
-    Output(OutputAction<M>),
+pub enum Action<M: Matcher, PB: ProtocolBehavior> {
+    Input(InputAction<M, PB>),
+    Output(OutputAction<M, PB>),
 }
 
-impl<M: Matcher> Action<M> {
-    fn execute<PB>(&self, step: &Step<M>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+impl<M: Matcher, PB: ProtocolBehavior> Action<M, PB> {
+    fn execute(&self, step: &Step<M, PB>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
@@ -600,7 +597,7 @@ impl<M: Matcher> Action<M> {
     }
 }
 
-impl<M: Matcher> fmt::Display for Action<M> {
+impl<M: Matcher, PB: ProtocolBehavior> fmt::Display for Action<M, PB> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Action::Input(input) => write!(f, "{}", input),
@@ -613,22 +610,25 @@ impl<M: Matcher> fmt::Display for Action<M> {
 /// TLS messages produced by the underlying stream by calling  `take_message_from_outbound(...)`.
 /// An output action is automatically called after each input step.
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
-pub struct OutputAction<M> {
-    phantom: PhantomData<M>,
+pub struct OutputAction<M, PB> {
+    phantomM: PhantomData<M>,
+    phantomPB: PhantomData<PB>,
 }
 
-impl<M: Matcher> OutputAction<M> {
-    pub fn new_step(agent: AgentName) -> Step<M> {
+impl<M: Matcher, PB: ProtocolBehavior> OutputAction<M, PB> {
+    pub fn new_step(agent: AgentName) -> Step<M, PB> {
         Step {
             agent,
             action: Action::Output(OutputAction {
-                phantom: Default::default(),
+                phantomM: Default::default(),
+                phantomPB: Default::default(),
             }),
         }
     }
 
     // called when you want to execute an action (output)
-    fn output<PB>(&self, step: &Step<M>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    // micol : PB is okay here ?
+    fn output(&self, step: &Step<M, PB>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
@@ -654,7 +654,7 @@ impl<M: Matcher> OutputAction<M> {
                 let knowledge = Knowledge::<M> {
                     agent_name: step.agent,
                     matcher: matcher.clone(),
-                    data: variable,
+                    data: GlobalVariableData(variable),
                 };
 
                 knowledge.debug_print(ctx, &step.agent);
@@ -665,7 +665,7 @@ impl<M: Matcher> OutputAction<M> {
                 let knowledge = Knowledge::<M> {
                     agent_name: step.agent,
                     matcher: None, // none because we can not trust the decoding of tls_message_type, because the message could be encrypted like in TLS 1.2
-                    data: variable,
+                    data: GlobalVariableData(variable),
                 };
 
                 knowledge.debug_print(ctx, &step.agent);
@@ -676,7 +676,7 @@ impl<M: Matcher> OutputAction<M> {
     }
 }
 
-impl<M: Matcher> fmt::Display for OutputAction<M> {
+impl<M: Matcher, PB: ProtocolBehavior> fmt::Display for OutputAction<M, PB> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "OutputAction")
     }
@@ -687,25 +687,21 @@ impl<M: Matcher> fmt::Display for OutputAction<M> {
 /// by calling `add_to_inbound(...)` and then drives the state machine forward.
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 #[serde(bound = "M: Matcher")]
-pub struct InputAction<M: Matcher> {
-    pub recipe: Term<M>,
+pub struct InputAction<M: Matcher, PB: ProtocolBehavior> {
+    pub recipe: Term<M, PB>,
 }
 
 /// Processes messages in the inbound channel. Uses the recipe field to evaluate to a rustls Message
 /// or a MultiMessage.
-impl<M: Matcher> InputAction<M> {
-    pub fn new_step(agent: AgentName, recipe: Term<M>) -> Step<M> {
+impl<M: Matcher, PB: ProtocolBehavior> InputAction<M, PB> {
+    pub fn new_step(agent: AgentName, recipe: Term<M, PB>) -> Step<M, PB> {
         Step {
             agent,
             action: Action::Input(InputAction { recipe }),
         }
     }
 
-    fn input<PB: ProtocolBehavior>(
-        &self,
-        step: &Step<M>,
-        ctx: &mut TraceContext<PB>,
-    ) -> Result<(), Error>
+    fn input(&self, step: &Step<M, PB>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
@@ -733,7 +729,7 @@ impl<M: Matcher> InputAction<M> {
     }
 }
 
-impl<M: Matcher> fmt::Display for InputAction<M> {
+impl<M: Matcher, PB: ProtocolBehavior> fmt::Display for InputAction<M, PB> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "InputAction:\n{}", self.recipe)
     }
