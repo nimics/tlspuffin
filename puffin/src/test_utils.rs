@@ -1,10 +1,11 @@
 use crate::{
     algebra::{Matcher, Term},
     graphviz::write_graphviz,
+    protocol::ProtocolBehavior,
     trace::{Action, Trace},
 };
 
-impl<M: Matcher> Trace<M> {
+impl<M: Matcher, PB: ProtocolBehavior> Trace<M, PB> {
     pub fn count_functions_by_name(&self, find_name: &'static str) -> usize {
         self.steps
             .iter()
@@ -36,7 +37,7 @@ impl<M: Matcher> Trace<M> {
     }
 }
 
-impl<M: Matcher> Term<M> {
+impl<M: Matcher, PB: ProtocolBehavior> Term<M, PB> {
     pub fn count_functions_by_name(&self, find_name: &'static str) -> usize {
         let mut found = 0;
         for term in self.into_iter() {

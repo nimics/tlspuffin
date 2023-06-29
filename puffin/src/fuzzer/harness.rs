@@ -26,7 +26,7 @@ pub fn set_default_put_options(default_put_options: PutOptions) -> Result<(), ()
         .map_err(|_err| ())
 }
 
-pub fn harness<PB: ProtocolBehavior + 'static>(input: &Trace<PB::Matcher>) -> ExitKind {
+pub fn harness<PB: ProtocolBehavior + 'static>(input: &Trace<PB::Matcher, PB>) -> ExitKind {
     let mut ctx = TraceContext::new(PB::registry(), default_put_options().clone());
 
     TRACE_LENGTH.update(input.steps.len());
@@ -62,7 +62,7 @@ pub fn harness<PB: ProtocolBehavior + 'static>(input: &Trace<PB::Matcher>) -> Ex
 }
 
 #[allow(unused)]
-pub fn dummy_harness<PB: ProtocolBehavior + 'static>(_input: &Trace<PB::Matcher>) -> ExitKind {
+pub fn dummy_harness<PB: ProtocolBehavior + 'static>(_input: &Trace<PB::Matcher, PB>) -> ExitKind {
     let mut rng = rand::thread_rng();
 
     let n1 = rng.gen_range(0..10);

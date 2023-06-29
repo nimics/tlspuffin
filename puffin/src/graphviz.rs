@@ -11,6 +11,7 @@ use itertools::Itertools;
 
 use crate::{
     algebra::{remove_fn_prefix, remove_prefix, Matcher, Term},
+    protocol::ProtocolBehavior,
     trace::{Action, Trace},
 };
 
@@ -58,7 +59,7 @@ pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<()
     Ok(())
 }
 
-impl<M: Matcher> Trace<M> {
+impl<M: Matcher, PB: ProtocolBehavior> Trace<M, PB> {
     pub fn dot_graph(&self, tree_mode: bool) -> String {
         format!(
             "strict digraph \"Trace\" \
@@ -106,7 +107,7 @@ impl<M: Matcher> Trace<M> {
     }
 }
 
-impl<M: Matcher> Term<M> {
+impl<M: Matcher, PB: ProtocolBehavior> Term<M, PB> {
     fn unique_id(&self, tree_mode: bool, cluster_id: usize) -> String {
         match self {
             Term::Variable(variable) => {
@@ -123,6 +124,13 @@ impl<M: Matcher> Term<M> {
                     format!("f_{}", func.resistant_id)
                 }
             }
+            Term::Message(message) => {
+                if tree_mode {
+                    format!("m_{}_{}", cluster_id, message.unique_id)
+                } else {
+                    format!("m_{}", message.resistant_id)
+                }
+            }
         }
     }
 
@@ -137,7 +145,7 @@ impl<M: Matcher> Term<M> {
     }
 
     fn collect_statements(
-        term: &Term<M>,
+        term: &Term<M, PB>,
         tree_mode: bool,
         cluster_id: usize,
         statements: &mut Vec<String>,
@@ -179,6 +187,14 @@ impl<M: Matcher> Term<M> {
                     ));
                     Self::collect_statements(subterm, tree_mode, cluster_id, statements);
                 }
+            }
+            Term::Message(message) => {
+                statements.push(format!(
+                    "{} {} [fontname=\"{}\"];",
+                    term.unique_id(tree_mode, cluster_id),
+                    Self::node_attributes(message, COLOR_LEAVES, SHAPE_LEAVES),
+                    FONT
+                ));
             }
         }
     }

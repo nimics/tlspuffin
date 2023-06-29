@@ -438,7 +438,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
 
     info!("Config: {:?}\n\nlog_handle: {:?}", &config, &log_handle);
 
-    let mut run_client = |state: Option<StdState<Trace<PB::Matcher>, _, _, _>>,
+    let mut run_client = |state: Option<StdState<Trace<PB::Matcher, PB>, _, _, _>>,
                           event_manager: LlmpRestartingEventManager<_, StdShMemProvider>,
                           _core_id: CoreId|
      -> Result<(), Error> {

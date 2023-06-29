@@ -115,19 +115,23 @@ impl<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> TryFrom<&MessageResult<M, 
 
 #[cfg(test)]
 #[allow(clippy::ptr_arg)]
+
 pub mod test_signature {
+    use core::fmt;
     use std::{
         any::{Any, TypeId},
-        fmt::{Debug, Formatter},
+        fmt::{Debug, Display, Formatter},
+        hash::Hasher,
         io::Read,
     };
 
     use libafl::prelude::HasBytesVec;
+    use serde::{Deserialize, Serialize, Serializer};
 
     use crate::{
         agent::{AgentDescriptor, AgentName, TLSVersion},
         algebra::{dynamic_function::TypeShape, error::FnError, AnyMatcher, Term},
-        claims::{Claim, SecurityViolationPolicy},
+        claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
         codec::{Codec, Reader},
         define_signature,
         error::Error,
@@ -306,6 +310,8 @@ pub mod test_signature {
         let client_hello = create_client_hello();
 
         Trace {
+            knowledge: vec![],
+            claims: GlobalClaimList::new(),
             prior_traces: vec![],
             descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_2)],
             steps: vec![
@@ -364,12 +370,13 @@ pub mod test_signature {
         fn_seq_1
     );
 
-    pub type TestTrace = Trace<AnyMatcher>;
-    pub type TestTerm = Term<AnyMatcher>;
+    pub type TestTrace = Trace<AnyMatcher, TestProtocolBehavior>;
+    pub type TestTerm = Term<AnyMatcher, TestProtocolBehavior>;
 
+    #[derive(Hash, Deserialize, Serialize)]
     pub struct TestClaim;
 
-    impl VariableData for TestClaim {
+    /* impl VariableData for TestClaim {
         fn boxed(&self) -> Box<dyn VariableData> {
             panic!("Not implemented for test stub");
         }
@@ -385,7 +392,7 @@ pub mod test_signature {
         fn type_name(&self) -> &'static str {
             panic!("Not implemented for test stub");
         }
-    }
+    } */
 
     impl Debug for TestClaim {
         fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -407,6 +414,13 @@ pub mod test_signature {
         }
     }
 
+    impl Clone for TestClaim {
+        fn clone(&self) -> Self {
+            panic!("not implemented for test stub");
+        }
+    }
+
+    #[derive(Hash, PartialEq, Deserialize)]
     pub struct TestOpaqueMessage;
 
     impl Clone for TestOpaqueMessage {
@@ -427,6 +441,21 @@ pub mod test_signature {
         }
 
         fn read(_: &mut Reader) -> Option<Self> {
+            panic!("Not implemented for test stub");
+        }
+    }
+
+    impl Serialize for TestOpaqueMessage {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            panic!("Not implemented for test stub");
+        }
+    }
+
+    impl Display for TestOpaqueMessage {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             panic!("Not implemented for test stub");
         }
     }
@@ -520,6 +549,7 @@ pub mod test_signature {
         }
     }
 
+    #[derive(Debug, Clone, Hash, PartialEq, Serialize, Deserialize)]
     pub struct TestProtocolBehavior;
 
     impl ProtocolBehavior for TestProtocolBehavior {
@@ -537,10 +567,26 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
+        fn create_corpus<PB: ProtocolBehavior>() -> Vec<(Trace<Self::Matcher, PB>, &'static str)> {
             panic!("Not implemented for test stub");
         }
     }
+
+    /* impl Serialize for TestProtocolBehavior {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            panic!("not implemented for a test stub")
+        }
+    }
+
+
+    impl std::hash::Hash for TestProtocolBehavior {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            panic!("Not implement for test stub");
+        }
+    } */
 
     pub struct TestFactory;
 
@@ -637,7 +683,7 @@ mod tests {
         let variable: Variable<AnyMatcher> =
             Signature::new_var(TypeShape::of::<Vec<u8>>(), AgentName::first(), None, 0);
 
-        let generated_term = Term::Application(
+        let generated_term: Term<AnyMatcher, TestProtocolBehavior> = Term::Application(
             hmac256,
             vec![
                 Term::Application(hmac256_new_key, vec![]),
@@ -691,7 +737,7 @@ mod tests {
         let _string = Signature::new_function(&example_op_c).shape();
         //println!("{}", string);
 
-        let constructed_term = Term::Application(
+        let constructed_term: Term<AnyMatcher, TestProtocolBehavior> = Term::Application(
             Signature::new_function(&example_op_c),
             vec![
                 Term::Application(

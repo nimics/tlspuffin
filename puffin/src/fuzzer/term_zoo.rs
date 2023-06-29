@@ -10,16 +10,17 @@ use crate::{
         Matcher, Term,
     },
     fuzzer::mutations::util::Choosable,
+    protocol::ProtocolBehavior,
 };
 
 const MAX_DEPTH: u16 = 8; // how deep terms we allow max
 const MAX_TRIES: u16 = 100; // How often we want to try to generate before stopping
 
-pub struct TermZoo<M: Matcher> {
-    terms: Vec<Term<M>>,
+pub struct TermZoo<M: Matcher, PB: ProtocolBehavior> {
+    terms: Vec<Term<M, PB>>,
 }
 
-impl<M: Matcher> TermZoo<M> {
+impl<M: Matcher, PB: ProtocolBehavior> TermZoo<M, PB> {
     pub fn generate<R: Rand>(signature: &Signature, rand: &mut R) -> Self {
         let terms = signature
             .functions
@@ -49,7 +50,7 @@ impl<M: Matcher> TermZoo<M> {
         (shape, dynamic_fn): &FunctionDefinition,
         depth: u16,
         rand: &mut R,
-    ) -> Option<Term<M>> {
+    ) -> Option<Term<M, PB>> {
         if depth == 0 {
             // Reached max depth
             return None;
@@ -86,14 +87,14 @@ impl<M: Matcher> TermZoo<M> {
         ))
     }
 
-    pub fn choose_filtered<P, R: Rand>(&self, filter: P, rand: &mut R) -> Option<&Term<M>>
+    pub fn choose_filtered<P, R: Rand>(&self, filter: P, rand: &mut R) -> Option<&Term<M, PB>>
     where
-        P: FnMut(&&Term<M>) -> bool,
+        P: FnMut(&&Term<M, PB>) -> bool,
     {
         self.terms.choose_filtered(filter, rand)
     }
 
-    pub fn terms(&self) -> &[Term<M>] {
+    pub fn terms(&self) -> &[Term<M, PB>] {
         &self.terms
     }
 }

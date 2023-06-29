@@ -299,7 +299,7 @@ fn plot<PB: ProtocolBehavior>(
     // Read trace file
     let mut buffer = Vec::new();
     input_file.read_to_end(&mut buffer)?;
-    let trace = postcard::from_bytes::<Trace<PB::Matcher>>(&buffer)?;
+    let trace = postcard::from_bytes::<Trace<PB::Matcher, PB>>(&buffer)?;
 
     // All-in-one tree
     write_graphviz(
@@ -329,7 +329,7 @@ fn seed<PB: ProtocolBehavior>(
     _put_registry: &PutRegistry<PB>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all("./seeds")?;
-    for (trace, name) in PB::create_corpus() {
+    for (trace, name) in PB::create_corpus::<PB>() {
         trace.to_file(format!("./seeds/{}.trace", name))?;
 
         info!("Generated seed traces into the directory ./corpus")
@@ -369,7 +369,7 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
     input: P,
     put_registry: &'static PutRegistry<PB>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let trace = Trace::<PB::Matcher>::from_file(input.as_ref())?;
+    let trace = Trace::<PB::Matcher, PB>::from_file(input.as_ref())?;
 
     info!("Agents: {:?}", &trace.descriptors);
 
@@ -394,7 +394,7 @@ fn binary_attack<PB: ProtocolBehavior>(
     output: &str,
     put_registry: &'static PutRegistry<PB>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let trace = Trace::<PB::Matcher>::from_file(input)?;
+    let trace = Trace::<PB::Matcher, PB>::from_file(input)?;
     let ctx = TraceContext::new(put_registry, default_put_options().clone());
 
     info!("Agents: {:?}", &trace.descriptors);
