@@ -335,25 +335,50 @@ mod fn_container {
     }
 }
 
-// from here on, micol
+/// Messages
 
-pub struct Message<PB> {
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(bound = "PB : ProtocolBehavior")]
+pub struct Message<PB: ProtocolBehavior> {
     /// Unique ID of this variable. Uniqueness is guaranteed across all[`Term`]sever created. Cloning
     /// change this ID.
     pub unique_id: u32,
     /// ID of this variable. This id stays the same during cloning.
     pub resistant_id: u32,
-    /// the message
-    /// it needs to be a message for evaluated function
-    pub message: <PB as ProtocolBehavior>::ProtocolMessage,
+    /// type, this type depends on the structure that it replaces
+    pub typ: TypeShape,
+    /// the message, it needs to be a message for evaluated function
+    pub message: <PB>::OpaqueProtocolMessage,
 }
 
-pub struct OpaqueMessage<PB> {
-    /// Unique ID of this variable. Uniqueness is guaranteed across all[`Term`]sever created. Cloning
-    /// change this ID.
-    pub unique_id: u32,
-    /// ID of this variable. This id stays the same during cloning.
-    pub resistant_id: u32,
-    /// the message
-    pub message: <PB as ProtocolBehavior>::OpaqueProtocolMessage,
+impl<PB: ProtocolBehavior> Hash for Message<PB> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.typ.hash(state);
+        //micol : I need to hash more stuff ?
+    }
+}
+
+impl<PB: ProtocolBehavior> Eq for Message<PB> {}
+
+impl<PB: ProtocolBehavior> PartialEq for Message<PB> {
+    fn eq(&self, other: &Self) -> bool {
+        self.typ == other.typ && self.message == other.message
+    }
+}
+
+impl<PB: ProtocolBehavior> Clone for Message<PB> {
+    fn clone(&self) -> Self {
+        Message {
+            unique_id: random(),
+            resistant_id: self.resistant_id,
+            typ: self.typ,
+            message: self.message.clone(),
+        }
+    }
+}
+
+impl<PB: ProtocolBehavior> fmt::Display for Message<PB> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}/{}", self.message, remove_prefix(self.typ.name))
+    }
 }
