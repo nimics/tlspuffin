@@ -1,17 +1,17 @@
 //! This module provides[`Term`]sas well as iterators over them.
 
-use std::{any::Any, fmt, fmt::Formatter};
+use std::{any::Any, fmt, fmt::Formatter, slice};
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use super::atoms::{Function, Message, OpaqueMessage, Variable};
+use super::atoms::{Function, Message, Variable};
 use crate::{
     algebra::{dynamic_function::TypeShape, error::FnError, Matcher},
     error::Error,
     fuzzer::mutations::util::{TermPath, TracePath},
     protocol::ProtocolBehavior,
-    trace::{Action, Step, Trace, TraceContext},
+    trace::{Action, Knowledge, Step, Trace, TraceContext},
     variable_data::VariableData,
 };
 
@@ -28,10 +28,8 @@ pub enum Term<M: Matcher, PB: ProtocolBehavior> {
     /// A `Term` that is an application of an [`Function`] with arity 0 applied to 0 `Term`s can be considered a constant.
     ///
     Application(Function, Vec<Term<M, PB>>),
-    ///A message
+    ///An opaque message
     Message(Message<PB>),
-    ///An opaque Message
-    OpaqueMessage(OpaqueMessage<PB>),
 }
 
 impl<M: Matcher, PB: ProtocolBehavior> fmt::Display for Term<M, PB> {
@@ -46,7 +44,6 @@ impl<M: Matcher, PB: ProtocolBehavior> Term<M, PB> {
             Term::Variable(v) => v.resistant_id,
             Term::Application(f, _) => f.resistant_id,
             Term::Message(m) => m.resistant_id,
-            Term::OpaqueMessage(o) => o.resistant_id,
         }
     }
 
@@ -72,8 +69,7 @@ impl<M: Matcher, PB: ProtocolBehavior> Term<M, PB> {
         match self {
             Term::Variable(v) => &v.typ,
             Term::Application(function, _) => &function.shape().return_type,
-            Term::Message(m) => panic!(),
-            Term::OpaqueMessage(_) => panic!(), // ?
+            Term::Message(m) => &m.typ,
         }
     }
 
@@ -81,8 +77,8 @@ impl<M: Matcher, PB: ProtocolBehavior> Term<M, PB> {
         match self {
             Term::Variable(v) => v.typ.name,
             Term::Application(function, _) => function.name(),
-            Term::Message(m) => panic!(),
-            Term::OpaqueMessage(_) => panic!(), // ?
+            // micol : would like to change next line to know it is a message
+            Term::Message(m) => m.typ.name,
         }
     }
 
@@ -93,7 +89,7 @@ impl<M: Matcher, PB: ProtocolBehavior> Term<M, PB> {
     fn display_at_depth(&self, depth: usize) -> String {
         let tabs = "\t".repeat(depth);
         match self {
-            Term::Variable(ref v) => format!("{}{}", tabs, v),
+            Term::Variable(ref v) => format!("Variable {}{}", tabs, v),
             Term::Application(ref func, ref args) => {
                 let op_str = remove_prefix(func.name());
                 let return_type = remove_prefix(func.shape().return_type.name);
@@ -110,60 +106,59 @@ impl<M: Matcher, PB: ProtocolBehavior> Term<M, PB> {
                     )
                 }
             }
-            Term::Message(ref m) => format!("{}{}", tabs, m),
-            Term::OpaqueMessage(ref m) => format!("{}{}", tabs, m),
+            Term::Message(ref m) => format!("Message {}{}", tabs, m),
         }
     }
 
-    pub fn follow_termpath<M, PB>(
-        &self,
-        path: TermPath,
-        new_term: Term<M, PB>,
-    ) -> Term<M, PB> {
-        match self {
-            Term::Variable(_) => new_term,
-            Term::Application(f, terms) => {
-                if let n = path.pop{
-                    if path.is_empty(){
-                        terms[]
+    /* pub fn follow_termpath(
+            &self,
+            path: TermPath,
+            new_term: Term<M, PB>,
+        ) -> Term<M, PB> {
+            match self {
+                Term::Variable(_) => new_term,
+                Term::Application(f, terms) => {
+                    if let n = path.pop{
+                        if path.is_empty(){
+                            terms[]
+                        }
+                    } else {
+                        panic!()
                     }
-                } else {
-                    panic!()
                 }
             }
         }
-    }
 
-    // replaces sub-term in tree with a message
-    pub fn replace(
-        &self,
-        trace: Trace<M>,
-        path: TermPath,
-        msg: <PB as ProtocolBehavior>::ProtocolMessage,
-    ) -> Term<M, PB> {
-        match trace.steps[path.0].action {
-            Action::Output(_) => panic!("reservoir sample chose an output ?"),
-            Action::Input(term) => {
-                let term = term.recipe;
-                let new_term = Message(Message {
-                    unique_id: term.unique_id_term(),
-                    resistant_id: term.resistant_id(),
-                    message: msg,
-                });
-                term.follow_termpath(path, new_term)
+         // replaces sub-term in tree with a message
+        pub fn replace(
+            &self,
+            trace: Trace<M>,
+            path: TermPath,
+            msg: <PB as ProtocolBehavior>::ProtocolMessage,
+        ) -> Term<M, PB> {
+            match trace.steps[path.0].action {
+                Action::Output(_) => panic!("reservoir sample chose an output ?"),
+                Action::Input(term) => {
+                    let term = term.recipe;
+                    let new_term = Message(Message {
+                        unique_id: term.unique_id_term(),
+                        resistant_id: term.resistant_id(),
+                        message: msg,
+                    });
+                    term.follow_termpath(path, new_term)
+                }
             }
         }
-    }
 
-    // replaces sub-term in tree with an opaque message
-    pub fn replace_opaque(
-        &self,
-        trace: Trace<M>,
-        path: TracePath,
-        msg: <PB as ProtocolBehavior>::ProtocolMessage,
-    ) -> Term<M, PB> {
-    }
-
+        // replaces sub-term in tree with an opaque message
+        pub fn replace_opaque(
+            &self,
+            trace: Trace<M>,
+            path: TracePath,
+            msg: <PB as ProtocolBehavior>::ProtocolMessage,
+        ) -> Term<M, PB> {
+        }
+    */
     pub fn evaluate<P: ProtocolBehavior>(
         &self,
         context: &TraceContext<P>,
@@ -193,8 +188,7 @@ impl<M: Matcher, PB: ProtocolBehavior> Term<M, PB> {
                 let result: Result<Box<dyn Any>, FnError> = dynamic_fn(&dynamic_args);
                 result.map_err(Error::Fn)
             }
-            Term::Message(msg) => Some(msg.message.boxed_any()),
-            Term::OpaqueMessage(msg) => Some(msg.message.boxed_any()),
+            Term::Message(msg) => Ok(msg.message.boxed_any()),
         }
     }
 }
@@ -224,7 +218,7 @@ impl<'a, M: Matcher, PB: ProtocolBehavior> IntoIterator for &'a Term<M, PB> {
 
     fn into_iter(self) -> Self::IntoIter {
         let mut result = vec![];
-        append::<M>(self, &mut result);
+        append::<M, PB>(self, &mut result);
         result.into_iter()
     }
 }
@@ -267,7 +261,6 @@ impl<M: Matcher, PB: ProtocolBehavior> Subterms<M, PB> for Vec<Term<M, PB>> {
 
         for (i, subterm) in self.iter().enumerate() {
             match &subterm {
-                Term::Variable(_) => {}
                 Term::Application(_, grand_subterms) => {
                     found_grand_subterms.extend(
                         grand_subterms
@@ -276,6 +269,7 @@ impl<M: Matcher, PB: ProtocolBehavior> Subterms<M, PB> for Vec<Term<M, PB>> {
                             .map(|grand_subterm| ((i, subterm), grand_subterm)),
                     );
                 }
+                _ => {}
             };
         }
 
