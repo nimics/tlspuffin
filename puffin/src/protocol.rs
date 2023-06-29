@@ -1,6 +1,10 @@
-use std::fmt::Debug;
+use std::{
+    fmt::{Debug, Display},
+    hash::Hash,
+};
 
 use libafl::prelude::HasBytesVec;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::{
     algebra::{signature::Signature, Matcher},
@@ -24,7 +28,9 @@ pub trait ProtocolMessage<O: OpaqueProtocolMessage>: Clone + Debug + Codec + Has
 /// A non-structured version of [`ProtocolMessage`]. This can be used for example for encrypted messages
 /// which do not have a structure.
 /// micol : added trait HasBytesVec
-pub trait OpaqueProtocolMessage: Clone + Debug + Codec + HasBytesVec {
+pub trait OpaqueProtocolMessage:
+    Clone + Debug + Codec + HasBytesVec + PartialEq + Display + Serialize + DeserializeOwned
+{
     fn debug(&self, info: &str);
     fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error>;
 }
@@ -48,7 +54,10 @@ pub trait ProtocolMessageDeframer {
 /// (security policy)[SecurityViolationPolicy] over
 /// sequences of them. Finally, there is a [matcher](Matcher) which allows traces to include
 /// queries for [knowledge](crate::trace::Knowledge).
-pub trait ProtocolBehavior: 'static {
+///
+
+pub trait ProtocolBehavior: 'static + Clone + Hash + Serialize + DeserializeOwned {
+    // micol : added Clone
     type Claim: Claim;
     type SecurityViolationPolicy: SecurityViolationPolicy<Self::Claim>;
 
@@ -67,7 +76,7 @@ pub trait ProtocolBehavior: 'static {
         Self: Sized;
 
     /// Creates a sane initial seed corpus.
-    fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)>;
+    fn create_corpus<PB: ProtocolBehavior>() -> Vec<(Trace<Self::Matcher, PB>, &'static str)>;
 }
 
 pub struct MessageResult<M: ProtocolMessage<O>, O: OpaqueProtocolMessage>(pub Option<M>, pub O);
