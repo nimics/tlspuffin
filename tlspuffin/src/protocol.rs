@@ -6,6 +6,7 @@ use puffin::{
     trace::Trace,
     variable_data::VariableData,
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{
     claims::TlsClaim,
@@ -27,16 +28,16 @@ use crate::{
     },
 };
 
-use libafl::HasBytesVec;
+use libafl::inputs::HasBytesVec;
 
 impl HasBytesVec for Message {
-    // micol : two following functions return the internal bytes map of message
+    // two following functions return the internal bytes map of message
     fn bytes(&self) -> &[u8] {
-        &self.payload.0[..]
+        &self.payload.unwrap_payload().0[..]
     }
 
     fn bytes_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.payload.0
+        &mut self.payload.unwrap_payload_mut().0
     }
 }
 
@@ -175,12 +176,13 @@ impl ProtocolMessageDeframer for MessageDeframer {
 }
 
 impl HasBytesVec for OpaqueMessage {
+    // two following functions return the internal bytes map of opaque message
     fn bytes(&self) -> &[u8] {
-        &self.payload.unwrap_payload().0[..]
+        &self.payload.0[..]
     }
 
     fn bytes_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.payload.unwrap_payload_mut().0
+        &mut self.payload.0
     }
 }
 
@@ -204,7 +206,7 @@ impl Matcher for msgs::enums::HandshakeType {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Hash, Serialize, Deserialize)]
 pub struct TLSProtocolBehavior;
 
 impl ProtocolBehavior for TLSProtocolBehavior {
@@ -222,7 +224,7 @@ impl ProtocolBehavior for TLSProtocolBehavior {
         &TLS_PUT_REGISTRY
     }
 
-    fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
+    fn create_corpus() -> Vec<(Trace<Self::Matcher, Self>, &'static str)> {
         create_corpus()
     }
 }

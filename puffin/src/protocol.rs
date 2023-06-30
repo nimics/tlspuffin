@@ -34,6 +34,11 @@ pub trait OpaqueProtocolMessage:
     fn debug(&self, info: &str);
     fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error>;
 }
+/* impl<T: OpaqueProtocolMessage> Display for T {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.debug("this is a message"))
+    }
+} */
 
 /// Deframes a stream of bytes into distinct [OpaqueProtocolMessages](OpaqueProtocolMessage).
 /// A deframer is usually state-ful. This means it produces as many messages from the input bytes
@@ -76,7 +81,7 @@ pub trait ProtocolBehavior: 'static + Clone + Hash + Serialize + DeserializeOwne
         Self: Sized;
 
     /// Creates a sane initial seed corpus.
-    fn create_corpus<PB: ProtocolBehavior>() -> Vec<(Trace<Self::Matcher, PB>, &'static str)>;
+    fn create_corpus() -> Vec<(Trace<Self::Matcher, Self>, &'static str)>;
 }
 
 pub struct MessageResult<M: ProtocolMessage<O>, O: OpaqueProtocolMessage>(pub Option<M>, pub O);

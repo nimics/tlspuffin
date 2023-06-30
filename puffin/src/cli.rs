@@ -329,7 +329,7 @@ fn seed<PB: ProtocolBehavior>(
     _put_registry: &PutRegistry<PB>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all("./seeds")?;
-    for (trace, name) in PB::create_corpus::<PB>() {
+    for (trace, name) in PB::create_corpus() {
         trace.to_file(format!("./seeds/{}.trace", name))?;
 
         info!("Generated seed traces into the directory ./corpus")

@@ -36,7 +36,7 @@ use crate::{
     protocol::{MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
     put::{PutDescriptor, PutOptions},
     put_registry::{Factory, PutRegistry},
-    variable_data::{GlobalVariableData, VariableData},
+    variable_data::VariableData,
 };
 
 /// When adding some (sub-)message m to ϕ, puffin and tlspuffin
@@ -69,13 +69,10 @@ impl<M: Matcher> Knowledge<M> {
 /// [Knowledge] describes an atomic piece of knowledge inferred
 /// by the [`crate::variable_data::extract_knowledge`] function
 /// [Knowledge] is made of the data, the agent that produced the output, the TLS message type and the internal type.
-#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
-#[serde(bound = "M: Matcher")]
-
 pub struct Knowledge<M: Matcher> {
     pub agent_name: AgentName, // agent that produced the output
     pub matcher: Option<M>,
-    pub data: GlobalVariableData,
+    pub data: Box<dyn VariableData>,
 }
 
 impl<M: Matcher> Knowledge<M> {
@@ -328,8 +325,6 @@ pub struct Trace<M: Matcher, PB: ProtocolBehavior> {
     pub descriptors: Vec<AgentDescriptor>,
     pub steps: Vec<Step<M, PB>>,
     pub prior_traces: Vec<Trace<M, PB>>,
-    pub knowledge: Vec<Knowledge<PB::Matcher>>,
-    pub claims: GlobalClaimList<PB::Claim>,
 }
 
 /// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an [`InputAction`].
@@ -380,10 +375,8 @@ impl<M: Matcher, PB: ProtocolBehavior> Trace<M, PB> {
         for (i, step) in steps.iter().enumerate() {
             debug!("Executing step #{}", i);
 
-            step.action.execute(step, ctx)?; // THIS is where TraceContext comes into play
+            step.action.execute(step, ctx)?;
 
-            // Output after each InputAction step
-            // why ???
             match step.action {
                 Action::Input(_) => {
                     let output_step = &OutputAction::<M, PB>::new_step(step.agent);
@@ -496,7 +489,7 @@ where
     }
 }
 
-impl<M: Matcher, PB, R: HasRand> HasBytesVec for Input<'_, M, PB, R>
+  impl<M: Matcher, PB, R: HasRand> HasBytesVec for Input<'_, M, PB, R>
 where
     PB: ProtocolBehavior<Matcher = M>,
 {
@@ -558,9 +551,7 @@ where
         }
     }
 }
-
-
-    */
+*/
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 #[serde(bound = "M: Matcher")]
@@ -611,8 +602,8 @@ impl<M: Matcher, PB: ProtocolBehavior> fmt::Display for Action<M, PB> {
 /// An output action is automatically called after each input step.
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub struct OutputAction<M, PB> {
-    phantomM: PhantomData<M>,
-    phantomPB: PhantomData<PB>,
+    phantom_m: PhantomData<M>,
+    phantom_pb: PhantomData<PB>,
 }
 
 impl<M: Matcher, PB: ProtocolBehavior> OutputAction<M, PB> {
@@ -620,8 +611,8 @@ impl<M: Matcher, PB: ProtocolBehavior> OutputAction<M, PB> {
         Step {
             agent,
             action: Action::Output(OutputAction {
-                phantomM: Default::default(),
-                phantomPB: Default::default(),
+                phantom_m: Default::default(),
+                phantom_pb: Default::default(),
             }),
         }
     }
@@ -654,7 +645,7 @@ impl<M: Matcher, PB: ProtocolBehavior> OutputAction<M, PB> {
                 let knowledge = Knowledge::<M> {
                     agent_name: step.agent,
                     matcher: matcher.clone(),
-                    data: GlobalVariableData(variable),
+                    data: variable,
                 };
 
                 knowledge.debug_print(ctx, &step.agent);
@@ -665,7 +656,7 @@ impl<M: Matcher, PB: ProtocolBehavior> OutputAction<M, PB> {
                 let knowledge = Knowledge::<M> {
                     agent_name: step.agent,
                     matcher: None, // none because we can not trust the decoding of tls_message_type, because the message could be encrypted like in TLS 1.2
-                    data: GlobalVariableData(variable),
+                    data: variable,
                 };
 
                 knowledge.debug_print(ctx, &step.agent);

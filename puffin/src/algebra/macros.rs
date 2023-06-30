@@ -79,7 +79,7 @@ macro_rules! term {
     (@$e:ident $(>$req_type:expr)?) => {{
         use $crate::algebra::Term;
 
-        let subterm: &Term<_> = &$e;
+        let subterm: &Term<_, _> = &$e;
         subterm.clone()
     }};
 }

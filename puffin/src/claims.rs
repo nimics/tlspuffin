@@ -2,7 +2,6 @@ use std::{
     any::Any,
     cell::{Ref, RefCell, RefMut},
     fmt::Debug,
-    hash::{Hash, Hasher},
     ops::Deref,
     rc::Rc,
     slice::Iter,
@@ -10,11 +9,10 @@ use std::{
 
 use itertools::Itertools;
 use log::{debug, trace};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::{agent::AgentName, algebra::dynamic_function::TypeShape, variable_data::VariableData};
 
-pub trait Claim: VariableData + Clone + Hash + Serialize + DeserializeOwned {
+pub trait Claim: VariableData {
     fn agent_name(&self) -> AgentName;
     fn id(&self) -> TypeShape;
     fn inner(&self) -> Box<dyn Any>;
@@ -24,8 +22,7 @@ pub trait SecurityViolationPolicy<C: Claim> {
     fn check_violation(claims: &[C]) -> Option<&'static str>;
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(bound = "C : Claim")]
+#[derive(Clone, Debug)]
 pub struct ClaimList<C: Claim> {
     claims: Vec<C>,
 }
@@ -85,8 +82,7 @@ impl<C: Claim> ClaimList<C> {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(bound = "C : Claim")]
+#[derive(Clone)]
 pub struct GlobalClaimList<C: Claim> {
     claims: Rc<RefCell<ClaimList<C>>>,
 }
@@ -104,11 +100,5 @@ impl<C: Claim> GlobalClaimList<C> {
 
     pub fn deref_borrow_mut(&self) -> RefMut<'_, ClaimList<C>> {
         self.claims.deref().borrow_mut()
-    }
-}
-
-impl<C: Claim> Hash for GlobalClaimList<C> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.claims.borrow().claims.hash(state)
     }
 }

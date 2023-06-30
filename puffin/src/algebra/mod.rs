@@ -310,8 +310,6 @@ pub mod test_signature {
         let client_hello = create_client_hello();
 
         Trace {
-            knowledge: vec![],
-            claims: GlobalClaimList::new(),
             prior_traces: vec![],
             descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_2)],
             steps: vec![
@@ -373,7 +371,6 @@ pub mod test_signature {
     pub type TestTrace = Trace<AnyMatcher, TestProtocolBehavior>;
     pub type TestTerm = Term<AnyMatcher, TestProtocolBehavior>;
 
-    #[derive(Hash, Deserialize, Serialize)]
     pub struct TestClaim;
 
     /* impl VariableData for TestClaim {
@@ -400,6 +397,12 @@ pub mod test_signature {
         }
     }
 
+    impl Clone for TestClaim {
+        fn clone(&self) -> Self {
+            panic!("Not implemented for a test stub")
+        }
+    }
+
     impl Claim for TestClaim {
         fn agent_name(&self) -> AgentName {
             panic!("Not implemented for test stub");
@@ -411,12 +414,6 @@ pub mod test_signature {
 
         fn inner(&self) -> Box<dyn Any> {
             panic!("Not implemented for test stub");
-        }
-    }
-
-    impl Clone for TestClaim {
-        fn clone(&self) -> Self {
-            panic!("not implemented for test stub");
         }
     }
 
@@ -567,26 +564,10 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn create_corpus<PB: ProtocolBehavior>() -> Vec<(Trace<Self::Matcher, PB>, &'static str)> {
+        fn create_corpus() -> Vec<(Trace<Self::Matcher, Self>, &'static str)> {
             panic!("Not implemented for test stub");
         }
     }
-
-    /* impl Serialize for TestProtocolBehavior {
-        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
-        {
-            panic!("not implemented for a test stub")
-        }
-    }
-
-
-    impl std::hash::Hash for TestProtocolBehavior {
-        fn hash<H: Hasher>(&self, state: &mut H) {
-            panic!("Not implement for test stub");
-        }
-    } */
 
     pub struct TestFactory;
 
