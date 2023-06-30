@@ -594,7 +594,7 @@ where
                         let replace_with = Term::Message(Message::new(
                             to_mutate.resistant_id(),
                             *to_mutate.get_type_shape(),
-                            *opaque_message,
+                            opaque_message.clone(),
                         ));
                         replace(trace, &(step_index, term_path), &replace_with);
                         Ok(MutationResult::Mutated)
@@ -825,7 +825,7 @@ pub mod util {
         term: &'a mut Term<M, PB>,
         term_path: &mut TermPath,
         message: &Term<M, PB>,
-    ) -> Result<(), Error> {
+    ) -> Option<()> {
         // term_path is never empty
         let subterm_index = term_path.remove(0);
 
@@ -833,22 +833,22 @@ pub mod util {
             // replace sub term by message
             match term {
                 Term::Application(_, subterms) => {
-                    subterms.get_mut(subterm_index) = message;
-                    Ok(())
+                    subterms[subterm_index] = message.clone();
+                    Some(())
                 }
-                _ => panic!("tracepath doesn't lead to a subterm"),
+                _ => None,
             }
-        }
-
-        match term {
-            Term::Application(_, subterms) => {
-                if let Some(subterm) = subterms.get_mut(subterm_index) {
-                    replace_in_term(subterm, term_path, message)
-                } else {
-                    panic!("tracepath doesn't lead to a subterm")
+        } else {
+            match term {
+                Term::Application(_, subterms) => {
+                    if let Some(subterm) = subterms.get_mut(subterm_index) {
+                        replace_in_term(subterm, term_path, message)
+                    } else {
+                        None
+                    }
                 }
+                _ => None,
             }
-            _ => panic!("tracepath doesn't lead to a subterm"),
         }
     }
 
