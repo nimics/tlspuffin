@@ -7,6 +7,7 @@ use std::{
     hash::{Hash, Hasher},
 };
 
+use nix::dir::Type;
 use rand::random;
 use serde::{Deserialize, Serialize};
 
@@ -351,10 +352,21 @@ pub struct Message<PB: ProtocolBehavior> {
     pub message: <PB>::OpaqueProtocolMessage,
 }
 
+impl<PB: ProtocolBehavior> Message<PB> {
+    pub fn new(id: u32, typ: TypeShape, message: <PB>::OpaqueProtocolMessage) -> Message<PB> {
+        Message {
+            unique_id: id,
+            resistant_id: id,
+            typ,
+            message,
+        }
+    }
+}
+
 impl<PB: ProtocolBehavior> Hash for Message<PB> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.typ.hash(state);
-        //micol : I need to hash more stuff ?
+        //I need to hash more stuff ?
     }
 }
 
