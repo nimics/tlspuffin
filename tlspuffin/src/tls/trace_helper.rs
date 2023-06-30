@@ -12,8 +12,8 @@ use crate::{
 };
 
 pub trait TraceHelper<A>: TraceExecutor<A> {
-    fn build_named_trace(self) -> (&'static str, Trace<TlsQueryMatcher>);
-    fn build_trace(self) -> Trace<TlsQueryMatcher>;
+    fn build_named_trace(self) -> (&'static str, Trace<TlsQueryMatcher, TLSProtocolBehavior>);
+    fn build_trace(self) -> Trace<TlsQueryMatcher, TLSProtocolBehavior>;
     fn fn_name(&self) -> &'static str;
 }
 
@@ -40,13 +40,13 @@ impl<A, H: TraceHelper<A>> TraceExecutor<A> for H {
 
 impl<F> TraceHelper<(AgentName, AgentName)> for F
 where
-    F: Fn(AgentName, AgentName) -> Trace<TlsQueryMatcher>,
+    F: Fn(AgentName, AgentName) -> Trace<TlsQueryMatcher, TLSProtocolBehavior>,
 {
-    fn build_named_trace(self) -> (&'static str, Trace<TlsQueryMatcher>) {
+    fn build_named_trace(self) -> (&'static str, Trace<TlsQueryMatcher, TLSProtocolBehavior>) {
         (self.fn_name(), self.build_trace())
     }
 
-    fn build_trace(self) -> Trace<TlsQueryMatcher> {
+    fn build_trace(self) -> Trace<TlsQueryMatcher, TLSProtocolBehavior> {
         let agent_a = AgentName::first();
         let agent_b = agent_a.next();
         (self)(agent_a, agent_b)
@@ -59,13 +59,13 @@ where
 
 impl<F> TraceHelper<AgentName> for F
 where
-    F: Fn(AgentName) -> Trace<TlsQueryMatcher>,
+    F: Fn(AgentName) -> Trace<TlsQueryMatcher, TLSProtocolBehavior>,
 {
-    fn build_named_trace(self) -> (&'static str, Trace<TlsQueryMatcher>) {
+    fn build_named_trace(self) -> (&'static str, Trace<TlsQueryMatcher, TLSProtocolBehavior>) {
         (self.fn_name(), self.build_trace())
     }
 
-    fn build_trace(self) -> Trace<TlsQueryMatcher> {
+    fn build_trace(self) -> Trace<TlsQueryMatcher, TLSProtocolBehavior> {
         let agent_a = AgentName::first();
 
         (self)(agent_a)

@@ -2,10 +2,11 @@ use puffin::{
     codec,
     codec::{Codec, Reader},
 };
+use serde::{Deserialize, Serialize};
 
 use crate::tls::rustls::key;
 /// An externally length'd payload
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Payload(pub Vec<u8>);
 
 impl Codec for Payload {

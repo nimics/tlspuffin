@@ -7,6 +7,7 @@ mod tests {
     };
 
     use crate::{
+        protocol::TLSProtocolBehavior,
         query::TlsQueryMatcher,
         tls::{fn_impl::*, TLS_SIGNATURE},
     };
@@ -15,7 +16,8 @@ mod tests {
     /// Tests whether all function symbols can be used when generating random terms
     fn test_term_generation() {
         let mut rand = StdRand::with_seed(101);
-        let zoo = TermZoo::<TlsQueryMatcher>::generate(&TLS_SIGNATURE, &mut rand);
+        let zoo =
+            TermZoo::<TlsQueryMatcher, TLSProtocolBehavior>::generate(&TLS_SIGNATURE, &mut rand);
 
         let subgraphs = zoo
             .terms()

@@ -10,9 +10,14 @@ use nix::{
 };
 use puffin::{put::PutOptions, trace::Trace};
 
-use crate::{put_registry::TLS_PUT_REGISTRY, query::TlsQueryMatcher};
+use crate::{
+    protocol::TLSProtocolBehavior, put_registry::TLS_PUT_REGISTRY, query::TlsQueryMatcher,
+};
 
-pub fn expect_trace_crash(trace: Trace<TlsQueryMatcher>, default_put_options: PutOptions) {
+pub fn expect_trace_crash(
+    trace: Trace<TlsQueryMatcher, TLSProtocolBehavior>,
+    default_put_options: PutOptions,
+) {
     expect_crash(move || {
         // Ignore Rust errors
         let _ = trace.execute_deterministic(&TLS_PUT_REGISTRY, default_put_options);

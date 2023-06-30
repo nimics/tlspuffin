@@ -16,6 +16,7 @@ use puffin::{
 };
 
 use crate::{
+    protocol::TLSProtocolBehavior,
     put_registry::TLS_PUT_REGISTRY,
     query::TlsQueryMatcher,
     test_utils::expect_crash,
@@ -30,13 +31,13 @@ use crate::{
 };
 
 fn create_state() -> StdState<
-    Trace<TlsQueryMatcher>,
-    InMemoryCorpus<Trace<TlsQueryMatcher>>,
+    Trace<TlsQueryMatcher, TLSProtocolBehavior>,
+    InMemoryCorpus<Trace<TlsQueryMatcher, TLSProtocolBehavior>>,
     RomuDuoJrRand,
-    InMemoryCorpus<Trace<TlsQueryMatcher>>,
+    InMemoryCorpus<Trace<TlsQueryMatcher, TLSProtocolBehavior>>,
 > {
     let rand = StdRand::with_seed(1235);
-    let corpus: InMemoryCorpus<Trace<_>> = InMemoryCorpus::new();
+    let corpus: InMemoryCorpus<Trace<_, _>> = InMemoryCorpus::new();
     StdState::new(rand, corpus, InMemoryCorpus::new(), &mut (), &mut ()).unwrap()
 }
 
@@ -56,7 +57,7 @@ fn test_mutate_seed_cve_2021_3449() {
 
             let mut mutator = RepeatMutator::new(15);
 
-            fn check_is_encrypt12(step: &Step<TlsQueryMatcher>) -> bool {
+            fn check_is_encrypt12(step: &Step<TlsQueryMatcher, TLSProtocolBehavior>) -> bool {
                 if let Action::Input(input) = &step.action {
                     if input.recipe.name() == fn_encrypt12.name() {
                         return true;
@@ -101,7 +102,6 @@ fn test_mutate_seed_cve_2021_3449() {
                 if let Some(last) = mutate.steps.iter().last() {
                     match &last.action {
                         Action::Input(input) => match &input.recipe {
-                            Term::Variable(_) => {}
                             Term::Application(_, subterms) => {
                                 if let Some(first_subterm) = subterms.iter().next() {
                                     if first_subterm.name() == fn_client_hello.name() {
@@ -110,6 +110,7 @@ fn test_mutate_seed_cve_2021_3449() {
                                     }
                                 }
                             }
+                            _ => {} // invalidates ???
                         },
                         Action::Output(_) => {}
                     }
@@ -130,7 +131,6 @@ fn test_mutate_seed_cve_2021_3449() {
                 if let Some(last) = mutate.steps.iter().last() {
                     match &last.action {
                         Action::Input(input) => match &input.recipe {
-                            Term::Variable(_) => {}
                             Term::Application(_, subterms) => {
                                 if let Some(last_subterm) = subterms.iter().last() {
                                     if last_subterm.name() == fn_seq_1.name() {
@@ -139,6 +139,7 @@ fn test_mutate_seed_cve_2021_3449() {
                                     }
                                 }
                             }
+                            _ => {}
                         },
                         Action::Output(_) => {}
                     }
@@ -160,7 +161,6 @@ fn test_mutate_seed_cve_2021_3449() {
                     if let Some(last) = mutate.steps.iter().last() {
                         match &last.action {
                             Action::Input(input) => match &input.recipe {
-                                Term::Variable(_) => {}
                                 Term::Application(_, subterms) => {
                                     if let Some(first_subterm) = subterms.iter().next() {
                                         let sig_alg_extensions = first_subterm
@@ -178,6 +178,7 @@ fn test_mutate_seed_cve_2021_3449() {
                                         }
                                     }
                                 }
+                                _ => {}
                             },
                             Action::Output(_) => {}
                         }
@@ -199,7 +200,6 @@ fn test_mutate_seed_cve_2021_3449() {
                 if let Some(last) = mutate.steps.iter().last() {
                     match &last.action {
                         Action::Input(input) => match &input.recipe {
-                            Term::Variable(_) => {}
                             Term::Application(_, subterms) => {
                                 if let Some(first_subterm) = subterms.iter().next() {
                                     let signatures = first_subterm
@@ -210,6 +210,7 @@ fn test_mutate_seed_cve_2021_3449() {
                                     }
                                 }
                             }
+                            _ => {}
                         },
                         Action::Output(_) => {}
                     }

@@ -14,6 +14,7 @@ use puffin::{
     trace::Trace,
 };
 use tlspuffin::{
+    protocol::TLSProtocolBehavior,
     query::TlsQueryMatcher,
     tls::{
         fn_impl::*,
@@ -45,13 +46,13 @@ fn benchmark_dynamic(c: &mut Criterion) {
 }
 
 fn create_state() -> StdState<
-    Trace<TlsQueryMatcher>,
-    InMemoryCorpus<Trace<TlsQueryMatcher>>,
+    Trace<TlsQueryMatcher, TLSProtocolBehavior>,
+    InMemoryCorpus<Trace<TlsQueryMatcher, TLSProtocolBehavior>>,
     RomuDuoJrRand,
-    InMemoryCorpus<Trace<TlsQueryMatcher>>,
+    InMemoryCorpus<Trace<TlsQueryMatcher, TLSProtocolBehavior>>,
 > {
     let rand = StdRand::with_seed(1235);
-    let corpus: InMemoryCorpus<Trace<_>> = InMemoryCorpus::new();
+    let corpus: InMemoryCorpus<Trace<_, _>> = InMemoryCorpus::new();
     StdState::new(rand, corpus, InMemoryCorpus::new(), &mut (), &mut ()).unwrap()
 }
 
@@ -76,7 +77,7 @@ fn benchmark_trace(c: &mut Criterion) {
     let mut group = c.benchmark_group("trace");
 
     group.bench_function("term clone", |b| {
-        let client_hello: Term<TlsQueryMatcher> = term! {
+        let client_hello: Term<TlsQueryMatcher, TLSProtocolBehavior> = term! {
               fn_client_hello(
                 fn_protocol_version12,
                 fn_new_random,

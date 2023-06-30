@@ -1,6 +1,7 @@
-use std::convert::TryFrom;
+use std::{convert::TryFrom, fmt::Display};
 
 use puffin::codec::{Codec, Reader};
+use serde::{Deserialize, Serialize};
 
 use crate::tls::rustls::{
     error::Error,
@@ -97,11 +98,17 @@ impl MessagePayload {
 /// This type owns all memory for its interior parts. It is used to read/write from/to I/O
 /// buffers as well as for fragmenting, joining and encryption/decryption. It can be converted
 /// into a `Message` by decoding the payload.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct OpaqueMessage {
     pub typ: ContentType,
     pub version: ProtocolVersion,
     pub payload: Payload,
+}
+
+impl Display for OpaqueMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.typ)
+    }
 }
 
 impl Codec for OpaqueMessage {
