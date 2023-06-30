@@ -1,11 +1,18 @@
+use std::any::Any;
+
 use libafl::prelude::*;
 use util::{Choosable, *};
 
 use crate::{
-    algebra::{atoms::Function, signature::Signature, Matcher, Subterms, Term},
+    algebra::{
+        atoms::{Function, Message},
+        signature::Signature,
+        Matcher, Subterms, Term,
+    },
+    fuzzer::harness::default_put_options,
     fuzzer::term_zoo::TermZoo,
-    protocol::ProtocolBehavior,
-    trace::Trace,
+    protocol::{ProtocolBehavior, ProtocolMessage},
+    trace::{Trace, TraceContext},
 };
 
 use libafl::mutators::{mutations, Mutator};
@@ -523,12 +530,9 @@ where
     }
 }
 
-/// ******************************************************************************************************
-/// begin havoc mutations
-/// ******************************************************************************************************
+// ******************************************************************************************************
 
-/// BITFLIP : Bitflip mutation
-
+// MAKE MESSAGE : transforms a sub term into a message which can be havoc mutated
 pub struct MakeMessage<S>
 where
     S: HasRand,
@@ -537,15 +541,95 @@ where
     phantom_s: std::marker::PhantomData<S>,
 }
 
-/// *******************************************************************************************************
+impl<S> MakeMessage<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new(constraints: TermConstraints) -> Self {
+        Self {
+            constraints,
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+// Matcher = M weird ??
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S> for MakeMessage<S>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        _stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        //choose random sub tree
+        if let Some((to_mutate, (step_index, term_path))) = choose(trace, self.constraints, rand) {
+            // TODO : use step_index to shorten steps and runtime of the PUT
+            // execute the PUT on the steps and recuperate the context
+            let mut ctx = TraceContext::new(PB::registry(), default_put_options().clone());
+            if let Ok(()) = trace.execute(&mut ctx) {
+                // turn term into a message
+                let evaluated = to_mutate
+                    .evaluate(&ctx)
+                    .expect("evaluation failed, am I supposed to panic ?");
+
+                // replace the term in the tree by OpaqueMessage
+                if let Some(message) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
+                    let replace_with = Term::Message(Message::new(
+                        to_mutate.resistant_id(),
+                        *to_mutate.get_type_shape(),
+                        message.create_opaque(),
+                    ));
+                    replace(trace, &(step_index, term_path), &replace_with);
+                    Ok(MutationResult::Mutated)
+                } else {
+                    if let Some(opaque_message) = evaluated
+                        .as_ref()
+                        .downcast_ref::<PB::OpaqueProtocolMessage>()
+                    {
+                        let replace_with = Term::Message(Message::new(
+                            to_mutate.resistant_id(),
+                            *to_mutate.get_type_shape(),
+                            *opaque_message,
+                        ));
+                        replace(trace, &(step_index, term_path), &replace_with);
+                        Ok(MutationResult::Mutated)
+                    } else {
+                        panic!("variable is not a `ProtocolMessage`, `OpaqueProtocolMessage`! and this should not happen");
+                    }
+                }
+            } else {
+                Ok(MutationResult::Skipped)
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+
+impl<S> Named for MakeMessage<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<MakeMessage<S>>()
+    }
+}
+
+// *******************************************************************************************************
 
 pub mod util {
     use libafl::bolts::rands::Rand;
 
     use crate::{
-        algebra::{Matcher, Term},
+        algebra::{atoms::Message, Matcher, Term},
+        error::Error,
         protocol::ProtocolBehavior,
-        trace::{Action, Step, Trace},
+        trace::{Action, InputAction, Step, Trace},
     };
 
     #[derive(Copy, Clone, Debug)]
@@ -729,6 +813,64 @@ pub mod util {
             match &mut step.action {
                 Action::Input(input) => {
                     find_term_by_term_path_mut(&mut input.recipe, &mut term_path.clone())
+                }
+                Action::Output(_) => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn replace_in_term<'a, M: Matcher, PB: ProtocolBehavior>(
+        term: &'a mut Term<M, PB>,
+        term_path: &mut TermPath,
+        message: &Term<M, PB>,
+    ) -> Result<(), Error> {
+        // term_path is never empty
+        let subterm_index = term_path.remove(0);
+
+        if term_path.is_empty() {
+            // replace sub term by message
+            match term {
+                Term::Application(_, subterms) => {
+                    subterms.get_mut(subterm_index) = message;
+                    Ok(())
+                }
+                _ => panic!("tracepath doesn't lead to a subterm"),
+            }
+        }
+
+        match term {
+            Term::Application(_, subterms) => {
+                if let Some(subterm) = subterms.get_mut(subterm_index) {
+                    replace_in_term(subterm, term_path, message)
+                } else {
+                    panic!("tracepath doesn't lead to a subterm")
+                }
+            }
+            _ => panic!("tracepath doesn't lead to a subterm"),
+        }
+    }
+
+    pub fn replace<'a, M: Matcher, PB: ProtocolBehavior>(
+        trace: &'a mut Trace<M, PB>,
+        trace_path: &TracePath,
+        message: &Term<M, PB>,
+    ) -> Option<&'a mut Trace<M, PB>> {
+        let (step_index, term_path) = trace_path;
+        let step: Option<&mut Step<M, PB>> = trace.steps.get_mut(*step_index);
+        if let Some(step) = step {
+            match &mut step.action {
+                Action::Input(input) => {
+                    if term_path.is_empty() {
+                        step.action = Action::Input(InputAction {
+                            recipe: message.clone(),
+                        });
+                        return Some(trace);
+                    } else {
+                        replace_in_term(&mut input.recipe, &mut term_path.clone(), message);
+                        return Some(trace);
+                    }
                 }
                 Action::Output(_) => None,
             }
