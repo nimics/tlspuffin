@@ -14,8 +14,8 @@ use crate::{
     protocol::{ProtocolBehavior, ProtocolMessage},
     trace::{Trace, TraceContext},
 };
-
-use libafl::mutators::{mutations, Mutator};
+use libafl::mutators::Mutator;
+use log::error;
 
 // returns list of mutations
 pub fn trace_mutations<S, M: Matcher, PB: ProtocolBehavior>(
@@ -31,8 +31,8 @@ pub fn trace_mutations<S, M: Matcher, PB: ProtocolBehavior>(
        ReplaceMatchMutator<S>,
        RemoveAndLiftMutator<S>,
        GenerateMutator<S, M, PB>,
-       SwapMutator<S>
-       //TOCHANGE
+       SwapMutator<S>,
+       MakeMessage<S>
    )
 where
     S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
@@ -44,7 +44,8 @@ where
         ReplaceMatchMutator::new(constraints, signature),
         RemoveAndLiftMutator::new(constraints),
         GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
-        SwapMutator::new(constraints)                                           //add havoc
+        SwapMutator::new(constraints),
+        MakeMessage::new(constraints)
     )
 }
 
@@ -82,6 +83,7 @@ where
         trace: &mut Trace<M, PB>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
+        println!("swap mutator");
         let rand = state.rand_mut();
         if let Some((term_a, trace_path_a)) = choose(trace, self.constraints, rand) {
             if let Some(trace_path_b) = choose_term_path_filtered(
@@ -531,8 +533,9 @@ where
 }
 
 // ******************************************************************************************************
+// Start Havoc Mutations
 
-// MAKE MESSAGE : transforms a sub term into a message which can be havoc mutated
+/// MAKE MESSAGE : transforms a sub term into a message which can then be mutated using havoc
 pub struct MakeMessage<S>
 where
     S: HasRand,
@@ -573,39 +576,53 @@ where
             let mut ctx = TraceContext::new(PB::registry(), default_put_options().clone());
             if let Ok(()) = trace.execute(&mut ctx) {
                 // turn term into a message
-                let evaluated = to_mutate
-                    .evaluate(&ctx)
-                    .expect("evaluation failed, am I supposed to panic ?");
-
-                // replace the term in the tree by OpaqueMessage
-                if let Some(message) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
-                    let replace_with = Term::Message(Message::new(
-                        to_mutate.resistant_id(),
-                        *to_mutate.get_type_shape(),
-                        message.create_opaque(),
-                    ));
-                    replace(trace, &(step_index, term_path), &replace_with);
-                    Ok(MutationResult::Mutated)
-                } else {
-                    if let Some(opaque_message) = evaluated
-                        .as_ref()
-                        .downcast_ref::<PB::OpaqueProtocolMessage>()
+                if let Ok(evaluated) = to_mutate.evaluate(&ctx) {
+                    // replace the term in the tree by OpaqueMessage
+                    if let Some(message) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>()
                     {
                         let replace_with = Term::Message(Message::new(
                             to_mutate.resistant_id(),
                             *to_mutate.get_type_shape(),
-                            opaque_message.clone(),
+                            message.create_opaque(),
                         ));
-                        replace(trace, &(step_index, term_path), &replace_with);
-                        Ok(MutationResult::Mutated)
+                        if let Some(_) = replace(trace, step_index, term_path, replace_with) {
+                            Ok(MutationResult::Mutated)
+                        } else {
+                            println!("function replace failed ! not opaque");
+                            Ok(MutationResult::Skipped)
+                        }
                     } else {
-                        panic!("variable is not a `ProtocolMessage`, `OpaqueProtocolMessage`! and this should not happen");
+                        if let Some(opaque_message) = evaluated
+                            .as_ref()
+                            .downcast_ref::<PB::OpaqueProtocolMessage>()
+                        {
+                            let replace_with = Term::Message(Message::new(
+                                to_mutate.resistant_id(),
+                                *to_mutate.get_type_shape(),
+                                opaque_message.clone(),
+                            ));
+                            if let Some(_) = replace(trace, step_index, term_path, replace_with) {
+                                println!("checking if I mutated correctly : TODO");
+                                Ok(MutationResult::Mutated)
+                            } else {
+                                println!("function replaced failed ! opaque");
+                                Ok(MutationResult::Skipped)
+                            }
+                        } else {
+                            println!("it wasn't a message or an opaque message");
+                            Ok(MutationResult::Skipped) // ???
+                        }
                     }
+                } else {
+                    println!("failed to evaluate");
+                    Ok(MutationResult::Skipped)
                 }
             } else {
+                println!("failed to execute trace on the PUT");
                 Ok(MutationResult::Skipped)
             }
         } else {
+            println!("failed to choose a term");
             Ok(MutationResult::Skipped)
         }
     }
@@ -620,9 +637,1507 @@ where
     }
 }
 
+/// BitFlip : bit flip mutations
+
+pub struct BitFlip<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> BitFlip<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S> for BitFlip<S>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => BitFlipMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+
+impl<S> Named for BitFlip<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<BitFlip<S>>()
+    }
+}
+
+/// ByteAddMutator : Adds or subtracts a random value up to ARITH_MAX to a [<$size>] at a random place in the Vec,
+/// in random byte order.
+
+pub struct ByteAdd<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> ByteAdd<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S> for ByteAdd<S>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => ByteAddMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+
+impl<S> Named for ByteAdd<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<ByteAdd<S>>()
+    }
+}
+
+/// ByteDecMutator : Byte decrement mutation
+
+pub struct ByteDec<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> ByteDec<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S> for ByteDec<S>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => ByteDecMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+
+impl<S> Named for ByteDec<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<ByteDec<S>>()
+    }
+}
+
+///  ByteFlipMutator : Byteflip mutation
+
+pub struct ByteFlip<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> ByteFlip<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S> for ByteFlip<S>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => ByteFlipMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+impl<S> Named for ByteFlip<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<ByteFlip<S>>()
+    }
+}
+
+/// ByteInc : Byte increment mutation
+
+pub struct ByteInc<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> ByteInc<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S> for ByteInc<S>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => ByteIncMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+
+impl<S> Named for ByteInc<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<ByteInc<S>>()
+    }
+}
+
+/// ByteInterestingMutator : Inserts an interesting value at a random place in the input vector
+
+pub struct ByteInteresting<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> ByteInteresting<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S>
+    for ByteInteresting<S>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => ByteInterestingMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+impl<S> Named for ByteInteresting<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<ByteInteresting<S>>()
+    }
+}
+
+/// ByteNegMutator : Byte negate mutation
+
+pub struct ByteNeg<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> ByteNeg<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S> for ByteNeg<S>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => ByteNegMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+impl<S> Named for ByteNeg<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<ByteNeg<S>>()
+    }
+}
+
+/// ByteRandMutator : Byte random mutation
+
+pub struct ByteRand<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> ByteRand<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S> for ByteRand<S>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => ByteRandMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+impl<S> Named for ByteRand<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<ByteRand<S>>()
+    }
+}
+
+/// BytesCopyMutator : Bytes copy mutation
+
+pub struct BytesCopy<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> BytesCopy<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S> for BytesCopy<S>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => BytesCopyMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+impl<S> Named for BytesCopy<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<BytesCopy<S>>()
+    }
+}
+
+/// BytesDeleteMutator : Bytes delete mutation
+
+pub struct BytesDelete<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> BytesDelete<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S> for BytesDelete<S>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => BytesDeleteMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+impl<S> Named for BytesDelete<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<BytesCopy<S>>()
+    }
+}
+
+/// BytesExpandMutator : Bytes expand mutation
+
+pub struct BytesExpand<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> BytesExpand<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S> for BytesExpand<S>
+where
+    S: HasRand + HasMaxSize,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => BytesExpandMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+impl<S> Named for BytesExpand<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<BytesExpand<S>>()
+    }
+}
+
+/// BytesInsertCopyMutator : Bytes insert and self copy mutation
+
+pub struct BytesInsertCopy<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> BytesInsertCopy<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S>
+    for BytesInsertCopy<S>
+where
+    S: HasRand + HasMaxSize,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => {
+                    mutations::BytesInsertCopyMutator::default().mutate(state, msg, stage_idx)
+                } // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+impl<S> Named for BytesInsertCopy<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<BytesInsertCopy<S>>()
+    }
+}
+
+/// BytesInsertMutator : Bytes insert mutation
+
+pub struct BytesInsert<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> BytesInsert<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S> for BytesInsert<S>
+where
+    S: HasRand + HasMaxSize,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => BytesInsertMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+impl<S> Named for BytesInsert<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<BytesInsert<S>>()
+    }
+}
+
+/// BytesRandInsertMutator : Bytes random insert mutation
+
+pub struct BytesRandInsert<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> BytesRandInsert<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S>
+    for BytesRandInsert<S>
+where
+    S: HasRand + HasMaxSize,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => BytesRandInsertMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+impl<S> Named for BytesRandInsert<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<BytesRandInsert<S>>()
+    }
+}
+
+/// BytesRandSetMutator : Bytes random set mutation
+
+pub struct BytesRandSet<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> BytesRandSet<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S> for BytesRandSet<S>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => BytesRandSetMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+impl<S> Named for BytesRandSet<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<BytesRandSet<S>>()
+    }
+}
+
+/// BytesSetMutator : Bytes set mutation
+
+pub struct BytesSet<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> BytesSet<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S> for BytesSet<S>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => BytesSetMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+impl<S> Named for BytesSet<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<BytesSet<S>>()
+    }
+}
+
+/// BytesSwapMutator : Bytes swap mutation for inputs with a bytes vector
+
+pub struct BytesSwap<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> BytesSwap<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S> for BytesSwap<S>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => BytesSwapMutator::default().mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+impl<S> Named for BytesSwap<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<BytesSwap<S>>()
+    }
+}
+
+/*
+/// CrossoverInsertMutator : Crossover insert mutation
+
+pub struct CrossoverInsert<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> CrossoverInsert<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S>
+    for CrossoverInsert<S>
+where
+    S: HasRand + HasCorpus + HasMaxSize,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => CrossoverInsertMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+impl<S> Named for CrossoverInsert<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<CrossoverInsert<S>>()
+    }
+}
+
+///CrossoverReplaceMutator : Crossover replace mutation
+
+pub struct CrossoverReplace<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> CrossoverReplace<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S>
+    for CrossoverReplace<S>
+where
+    S: HasRand + HasCorpus,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => CrossoverReplaceMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+impl<S> Named for CrossoverReplace<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<CrossoverReplace<S>>()
+    }
+}
+*/
+
+/// DwordAddMutator : Adds or subtracts a random value up to ARITH_MAX to a [<$size>]
+/// at a random place in the Vec, in random byte order.
+
+pub struct DwordAdd<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> DwordAdd<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S> for DwordAdd<S>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => DwordAddMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+impl<S> Named for DwordAdd<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<DwordAdd<S>>()
+    }
+}
+
+/// DwordInterestingMutator : Inserts an interesting value at a random place in the input vector
+
+pub struct DwordInteresting<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> DwordInteresting<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S>
+    for DwordInteresting<S>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => DwordInterestingMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+impl<S> Named for DwordInteresting<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<DwordInteresting<S>>()
+    }
+}
+
+/// QwordAddMutator : Adds or subtracts a random value up to ARITH_MAX to a [<$size>]
+/// at a random place in the Vec, in random byte order.
+
+pub struct QwordAdd<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> QwordAdd<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S> for QwordAdd<S>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => QwordAddMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+impl<S> Named for QwordAdd<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<QwordAdd<S>>()
+    }
+}
+
+/*
+/// SpliceMutator : Splice mutation
+
+pub struct Splice<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> Splice<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S> for Splice<S>
+where
+    S: HasRand + HasCorpus,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => SpliceMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+impl<S> Named for Splice<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<Splice<S>>()
+    }
+}
+*/
+
+/// WordAddMutator : Adds or subtracts a random value up to ARITH_MAX to a [<$size>]
+/// at a random place in the Vec, in random byte order.
+
+pub struct WordAdd<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> WordAdd<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S> for WordAdd<S>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => WordAddMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+impl<S> Named for WordAdd<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<WordAdd<S>>()
+    }
+}
+
+/// WordInterestingMutator : Inserts an interesting value at a random place in the input vector
+
+pub struct WordInteresting<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> WordInteresting<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S>
+    for WordInteresting<S>
+where
+    S: HasRand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M, PB>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| match x {
+                Term::Message(_) => true,
+                _ => false,
+            },
+            TermConstraints::default(),
+            rand,
+        ) {
+            match to_mutate {
+                Term::Message(msg) => WordInterestingMutator.mutate(state, msg, stage_idx), // stage ?
+                _ => panic!("this shouldn't happen !"),
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+impl<S> Named for WordInteresting<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<WordInteresting<S>>()
+    }
+}
+
 // *******************************************************************************************************
 
 pub mod util {
+    use std::ops::Not;
+
     use libafl::bolts::rands::Rand;
 
     use crate::{
@@ -708,7 +2223,7 @@ pub mod util {
     pub type TracePath = (StepIndex, TermPath);
 
     /// https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
-    /// chooses a random sample, used in function choose, used in mutations
+    // chooses a random sample, used in function choose, used in mutations
     fn reservoir_sample<
         'a,
         R: Rand,
@@ -780,6 +2295,142 @@ pub mod util {
         reservoir
     }
 
+    fn weighted_reservoir<'a, R: Rand, M: Matcher, PB: ProtocolBehavior>(
+        trace: &'a Trace<M, PB>,
+        constraints: TermConstraints,
+        rand: &mut R,
+    ) -> Option<(&'a Term<M, PB>, TracePath)> {
+        let mut reservoir: Option<(&'a Term<M, PB>, TracePath)> = None;
+        let mut totalweight: u64 = 0;
+
+        // calculate max tree height amongst the input steps
+        let mut max_height = 0;
+        for step in &trace.steps {
+            match &step.action {
+                Action::Input(input) => {
+                    let term = &input.recipe;
+                    let h = term.height();
+                    if h > max_height {
+                        max_height = h;
+                    }
+                }
+                Action::Output(_) => {}
+            }
+        }
+
+        for (step_index, step) in trace.steps.iter().enumerate() {
+            match &step.action {
+                Action::Input(input) => {
+                    let term = &input.recipe;
+
+                    let size = term.size();
+                    if size <= constraints.min_term_size || size >= constraints.max_term_size {
+                        continue;
+                    }
+
+                    // calculate the height of each sub tree
+                    // then execute the algo A Chao
+
+                    // queue for a classic DFS
+                    let mut q: Vec<(&Term<M, PB>, TermPath)> = vec![(term, Vec::new())];
+
+                    while !q.is_empty() {
+                        let term = q.pop().unwrap();
+                        match term.0 {
+                            Term::Application(_, ref subterms) => {
+                                // add future nodes to explore
+                                for (path_index, t) in subterms.iter().enumerate() {
+                                    let mut new_path = term.1.clone();
+                                    new_path.push(path_index);
+                                    q.push((t, new_path))
+                                }
+
+                                // calculate height of current term (usual method)
+                                let height = term.0.height();
+                                //we have the height, apply A Chao
+
+                                let weight: u64 = (2 as u64).pow((max_height - height) as u32);
+                                totalweight += weight;
+                                if reservoir.is_none() {
+                                    reservoir = Some((term.0, (step_index, term.1)))
+                                } else {
+                                    if rand.between(1, weight / totalweight) == 1 {
+                                        reservoir = Some((term.0, (step_index, term.1)))
+                                    }
+                                }
+                            }
+                            _ => {
+                                // Apply A Chao with height = 1
+
+                                if reservoir.is_none() {
+                                    reservoir = Some((term.0, (step_index, term.1)))
+                                } else {
+                                    let weight = (2 as u64).pow(max_height as u32);
+                                    if rand.between(weight, weight / totalweight) == 1 {
+                                        reservoir = Some((term.0, (step_index, term.1)))
+                                    };
+                                }
+                            }
+                        }
+                    }
+                }
+                Action::Output(_) => {}
+            }
+        }
+        reservoir
+    }
+
+    /* fn sample<'a, M: Matcher, PB: ProtocolBehavior, R: Rand>(
+        term: Term<M, PB>,
+        path: TermPath,
+        mut reservoir: &Option<(&'a Term<M, PB>, TracePath)>,
+        totalweight: &mut u64,
+        step_index: usize,
+        rand: &mut R,
+    ) -> u64 {
+        match term {
+            Term::Application(_, subterms) => {
+                // weight : calculate the size of the sub tree
+                let mut weight = 1;
+                for (path_index, subterm) in subterms.iter().enumerate() {
+                    let mut next_path = path.clone();
+                    next_path.push(path_index);
+                    weight += sample::<'a, M, PB, R>(
+                        subterm.clone(),
+                        next_path,
+                        reservoir,
+                        totalweight,
+                        step_index,
+                        rand,
+                    );
+                }
+                // sampling
+                *totalweight += weight;
+                // will need to change this !! needs to be a function of weight
+                if reservoir.is_none() {
+                    reservoir = &mut Some((&term, (step_index, path)))
+                } else {
+                    // same here, needs to be a function of weight
+                    if rand.between(1, weight / *totalweight) == 1 {
+                        reservoir = &mut Some((&term, (step_index, path)))
+                    }
+                };
+                weight
+            }
+            _ => {
+                if reservoir.is_none() {
+                    reservoir = &mut Some((&term, (step_index, path)))
+                } else {
+                    // same here, needs to be a function of 1
+                    if rand.between(1, 1 / *totalweight) == 1 {
+                        reservoir = &mut Some((&term, (step_index, path)))
+                    };
+                };
+                1
+            }
+        }
+    } */
+
     fn find_term_by_term_path_mut<'a, M: Matcher, PB: ProtocolBehavior>(
         term: &'a mut Term<M, PB>,
         term_path: &mut TermPath,
@@ -821,10 +2472,11 @@ pub mod util {
         }
     }
 
+    // maybe optimize with for loop
     pub fn replace_in_term<'a, M: Matcher, PB: ProtocolBehavior>(
         term: &'a mut Term<M, PB>,
         term_path: &mut TermPath,
-        message: &Term<M, PB>,
+        message: Term<M, PB>,
     ) -> Option<()> {
         // term_path is never empty
         let subterm_index = term_path.remove(0);
@@ -833,7 +2485,7 @@ pub mod util {
             // replace sub term by message
             match term {
                 Term::Application(_, subterms) => {
-                    subterms[subterm_index] = message.clone();
+                    subterms[subterm_index] = message;
                     Some(())
                 }
                 _ => None,
@@ -854,18 +2506,16 @@ pub mod util {
 
     pub fn replace<'a, M: Matcher, PB: ProtocolBehavior>(
         trace: &'a mut Trace<M, PB>,
-        trace_path: &TracePath,
-        message: &Term<M, PB>,
+        step_index: StepIndex,
+        term_path: TermPath,
+        message: Term<M, PB>,
     ) -> Option<&'a mut Trace<M, PB>> {
-        let (step_index, term_path) = trace_path;
-        let step: Option<&mut Step<M, PB>> = trace.steps.get_mut(*step_index);
+        let step: Option<&mut Step<M, PB>> = trace.steps.get_mut(step_index);
         if let Some(step) = step {
             match &mut step.action {
                 Action::Input(input) => {
                     if term_path.is_empty() {
-                        step.action = Action::Input(InputAction {
-                            recipe: message.clone(),
-                        });
+                        step.action = Action::Input(InputAction { recipe: message });
                         return Some(trace);
                     } else {
                         replace_in_term(&mut input.recipe, &mut term_path.clone(), message);
@@ -946,6 +2596,53 @@ pub mod util {
         rand: &mut R,
     ) -> Option<TracePath> {
         reservoir_sample(trace, filter, constraints, rand).map(|ret| ret.1)
+    }
+
+    pub fn choose_with_weights<'a, R: Rand, M: Matcher, PB: ProtocolBehavior>(
+        trace: &'a Trace<M, PB>,
+        constraints: TermConstraints,
+        rand: &mut R,
+    ) -> Option<(&'a Term<M, PB>, TracePath)> {
+        weighted_reservoir(trace, constraints, rand)
+    }
+
+    // used in testing MakeMessage
+    pub fn find_message<M: Matcher, PB: ProtocolBehavior>(trace: Trace<M, PB>) {
+        let mut a = false;
+
+        for step in trace.steps {
+            match step.action {
+                Action::Input(input) => {
+                    let term = input.recipe;
+                    let mut q = vec![term];
+                    while !q.is_empty() {
+                        if let Some(term) = q.pop() {
+                            match term {
+                                Term::Message(_) => a = true,
+                                Term::Application(_, subterms) => {
+                                    for t in subterms {
+                                        q.push(t);
+                                    }
+                                }
+                                _ => {}
+                            }
+                            if a == true {
+                                println!("i found a message !")
+                            } else {
+                                println!("i didn't find a message")
+                            }
+                        } else {
+                            panic!("q is empty")
+                        }
+                    }
+                }
+                Action::Output(_) => {}
+            }
+        }
+
+        if a == false {
+            panic!("No message created")
+        }
     }
 }
 
