@@ -75,22 +75,6 @@ impl MessagePayload {
             Self::Heartbeat(_) => ContentType::Heartbeat,
         }
     }
-
-    //micol : next two functions to get payload
-
-    pub fn unwrap_payload(&self) -> &Payload {
-        match self {
-            Self::ApplicationData(payload) => return payload,
-            _ => panic!("I am not sure how to get payload !!"),
-        }
-    }
-
-    pub fn unwrap_payload_mut(&mut self) -> &mut Payload {
-        match self {
-            Self::ApplicationData(payload) => return payload,
-            _ => panic!("I am not sure how to get payload !!"),
-        }
-    }
 }
 
 /// A TLS frame, named TLSPlaintext in the standard.
@@ -98,7 +82,7 @@ impl MessagePayload {
 /// This type owns all memory for its interior parts. It is used to read/write from/to I/O
 /// buffers as well as for fragmenting, joining and encryption/decryption. It can be converted
 /// into a `Message` by decoding the payload.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Hash, Eq)]
 pub struct OpaqueMessage {
     pub typ: ContentType,
     pub version: ProtocolVersion,
@@ -107,7 +91,7 @@ pub struct OpaqueMessage {
 
 impl Display for OpaqueMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.typ)
+        write!(f, "opaque message : {:?}", self.typ)
     }
 }
 

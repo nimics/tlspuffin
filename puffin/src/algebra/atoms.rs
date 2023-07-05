@@ -7,6 +7,7 @@ use std::{
     hash::{Hash, Hasher},
 };
 
+use libafl::prelude::HasBytesVec;
 use nix::dir::Type;
 use rand::random;
 use serde::{Deserialize, Serialize};
@@ -338,7 +339,7 @@ mod fn_container {
 
 /// Messages
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
 #[serde(bound = "PB : ProtocolBehavior")]
 pub struct Message<PB: ProtocolBehavior> {
     /// Unique ID of this variable. Uniqueness is guaranteed across all[`Term`]sever created. Cloning
@@ -363,18 +364,13 @@ impl<PB: ProtocolBehavior> Message<PB> {
     }
 }
 
-impl<PB: ProtocolBehavior> Hash for Message<PB> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.typ.hash(state);
-        //I need to hash more stuff ?
+impl<PB: ProtocolBehavior> HasBytesVec for Message<PB> {
+    fn bytes(&self) -> &[u8] {
+        self.message.bytes()
     }
-}
 
-impl<PB: ProtocolBehavior> Eq for Message<PB> {}
-
-impl<PB: ProtocolBehavior> PartialEq for Message<PB> {
-    fn eq(&self, other: &Self) -> bool {
-        self.typ == other.typ && self.message == other.message
+    fn bytes_mut(&mut self) -> &mut Vec<u8> {
+        self.message.bytes_mut()
     }
 }
 

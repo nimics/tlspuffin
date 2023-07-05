@@ -19,7 +19,7 @@ use crate::{
 /// A structured message. This type defines how all possible messages of a protocol.
 /// Usually this is implemented using an `enum`.
 /// micol : added trait HasBytesVec
-pub trait ProtocolMessage<O: OpaqueProtocolMessage>: Clone + Debug + Codec + HasBytesVec {
+pub trait ProtocolMessage<O: OpaqueProtocolMessage>: Clone + Debug + Codec {
     fn create_opaque(&self) -> O;
     fn debug(&self, info: &str);
     fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error>;
@@ -29,7 +29,7 @@ pub trait ProtocolMessage<O: OpaqueProtocolMessage>: Clone + Debug + Codec + Has
 /// which do not have a structure.
 /// micol : added trait HasBytesVec
 pub trait OpaqueProtocolMessage:
-    Clone + Debug + Codec + HasBytesVec + PartialEq + Display + Serialize + DeserializeOwned
+    Clone + Debug + Codec + HasBytesVec + PartialEq + Display + Serialize + DeserializeOwned + Hash + Eq
 {
     fn debug(&self, info: &str);
     fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error>;

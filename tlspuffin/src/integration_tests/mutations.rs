@@ -1,9 +1,12 @@
 use puffin::{
     agent::AgentName,
     algebra::{dynamic_function::DescribableFunction, Term},
-    fuzzer::mutations::{
-        util::TermConstraints, RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator,
-        ReplaceReuseMutator,
+    fuzzer::{
+        harness::set_default_put_options,
+        mutations::{
+            util::TermConstraints, BitFlip, MakeMessage, RemoveAndLiftMutator, RepeatMutator,
+            ReplaceMatchMutator, ReplaceReuseMutator,
+        },
     },
     libafl::{
         bolts::rands::{RomuDuoJrRand, StdRand},
@@ -12,7 +15,7 @@ use puffin::{
         state::StdState,
     },
     put::PutOptions,
-    trace::{Action, Step, Trace, TraceContext},
+    trace::{Action, InputAction, Step, Trace, TraceContext},
 };
 
 use crate::{
@@ -224,4 +227,54 @@ fn test_mutate_seed_cve_2021_3449() {
             println!("try");
         }
     });
+}
+
+#[test]
+fn test_makemessage() {
+    let mut state = create_state();
+    let _server = AgentName::first();
+    let mut options: Vec<(String, String)> = Vec::new();
+    set_default_put_options(PutOptions::new(options)).expect("failed to set default PUT options");
+    let mut mutator = MakeMessage::new(TermConstraints::default());
+    let (mut trace, _) = _seed_client_attacker12(AgentName::first());
+    if mutator.mutate(&mut state, &mut trace, 0).unwrap() == MutationResult::Skipped {
+        println!("it skips ???")
+    };
+
+    //check to see if there is a Message now
+    let mut a = false;
+
+    for step in trace.steps {
+        match step.action {
+            Action::Input(input) => {
+                let term = input.recipe;
+                let mut q = vec![term];
+                while !q.is_empty() {
+                    if let Some(term) = q.pop() {
+                        match term {
+                            Term::Message(_) => a = true,
+                            Term::Application(_, subterms) => {
+                                for t in subterms {
+                                    q.push(t);
+                                }
+                            }
+                            _ => {}
+                        }
+                        if a == true {
+                            println!("i found a message !")
+                        }
+                    } else {
+                        panic!("q is empty")
+                    }
+                }
+            }
+            Action::Output(_) => {}
+        }
+    }
+
+    if a == false {
+        panic!("No message created")
+    }
+
+    // let mut mutator = BitFlip::new();
 }

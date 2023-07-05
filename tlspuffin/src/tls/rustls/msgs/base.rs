@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::tls::rustls::key;
 /// An externally length'd payload
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Hash, Eq)]
 pub struct Payload(pub Vec<u8>);
 
 impl Codec for Payload {
