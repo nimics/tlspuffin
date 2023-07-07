@@ -30,17 +30,6 @@ use crate::{
 
 use libafl::inputs::HasBytesVec;
 
-impl HasBytesVec for Message {
-    // two following functions return the internal bytes map of message
-    fn bytes(&self) -> &[u8] {
-        &self.payload.unwrap_payload().0[..]
-    }
-
-    fn bytes_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.payload.unwrap_payload_mut().0
-    }
-}
-
 impl ProtocolMessage<OpaqueMessage> for Message {
     fn create_opaque(&self) -> OpaqueMessage {
         msgs::message::PlainMessage::from(self.clone()).into_unencrypted_opaque()

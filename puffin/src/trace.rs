@@ -374,7 +374,6 @@ impl<M: Matcher, PB: ProtocolBehavior> Trace<M, PB> {
         let steps = &self.steps;
         for (i, step) in steps.iter().enumerate() {
             debug!("Executing step #{}", i);
-
             step.action.execute(step, ctx)?;
 
             match step.action {
@@ -449,109 +448,11 @@ impl<M: Matcher, PB: ProtocolBehavior> fmt::Display for Trace<M, PB> {
     }
 }
 
-/* impl<M: Matcher, PB, R: HasRand> HasBytesVec for Input<'_, M, PB, R>
-where
-    PB: ProtocolBehavior<Matcher = M>,
-{
-    fn bytes(&self) -> &[u8] {
-        let rand = self.rand.rand_mut();
-        let ctx = &self.context;
+/*  impl<M, PB> HasBytesVec for Trace<M, PB> {
+    fn bytes(&self) -> &[u8] {}
 
-        //choose a sub term at random
-        if let Some((chosen_term, path)) =
-            choose(&self.trace, TermConstraints::default(), rand).cloned()
-        {
-            // turn term into a message
-            let evaluated = chosen_term
-                .evaluate(&ctx)
-                .expect("evaluation failed, am I supposed to panic ?");
-
-            // replace the term in the tree by Message or OpaqueMessage
-            if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
-                chosen_term.replace(self.trace, path, msg);
-                //call bytes from mod protocol
-                msg.bytes()
-            } else {
-                if let Some(opaque_message) = evaluated
-                    .as_ref()
-                    .downcast_ref::<PB::OpaqueProtocolMessage>()
-                {
-                    chosen_term.replace_opaque(self.trace, path, opaque_message);
-                    // call bytes from mod protocol
-                    &opaque_message.bytes()
-                } else {
-                    panic!("variable is not a `ProtocolMessage`, `OpaqueProtocolMessage`! and this should not happen");
-                }
-            }
-        } else {
-            &[]
-        }
-    }
-}
-
-  impl<M: Matcher, PB, R: HasRand> HasBytesVec for Input<'_, M, PB, R>
-where
-    PB: ProtocolBehavior<Matcher = M>,
-{
-    fn bytes(&self) -> &[u8] {
-
-        //do i need cloned ?
-        {
-
-            //take corresponding message or opaque message
-            if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
-                //call bytes from mod protocol
-                let slice = msg.bytes().clone();
-                &slice
-            } else {
-                if let Some(opaque_message) = evaluated
-                    .as_ref()
-                    .downcast_ref::<PB::OpaqueProtocolMessage>()
-                {
-                    // call bytes from mod protocol
-                    &opaque_message.bytes()
-                } else {
-                    panic!("variable is not a `ProtocolMessage`, `OpaqueProtocolMessage`! and this should not happen");
-                }
-            }
-        } else {
-
-        }
-    }
-
-    fn bytes_mut(&mut self) -> &mut Vec<u8> {
-        let rand = self.rand.rand_mut();
-        let ctx = &self.context;
-        //choose a sub term at random
-        if let Some(chosen_term) =
-            choose_term(&self.trace, TermConstraints::default(), rand).cloned()
-        //do i need cloned ?
-        {
-            let evaluated = chosen_term
-                .evaluate(&ctx)
-                .expect("evaluation failed, am I supposed to panic ?");
-            //take corresponding message or opaque message
-            if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
-                msg.debug("Input message");
-
-                //call bytes (mod protocol)
-                msg.bytes_mut()
-            } else {
-                if let Some(opaque_message) = evaluated
-                    .as_ref()
-                    .downcast_ref::<PB::OpaqueProtocolMessage>()
-                {
-                    opaque_message.bytes_mut()
-                } else {
-                    panic!("term is not a `ProtocolMessage`, `OpaqueProtocolMessage`! and this should not happen");
-                }
-            }
-        } else {
-            panic!() // I should return an empty mutable vector ?
-        }
-    }
-}
-*/
+    fn bytes_mut(&mut self) -> &mut Vec<u8> {}
+} */
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 #[serde(bound = "M: Matcher")]

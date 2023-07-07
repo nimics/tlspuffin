@@ -594,27 +594,28 @@ where
             }
             new_trace.steps = steps; */
             // execute the PUT on the steps and recuperate the context
-            let mut step = trace.steps[step_index].clone();
-            step.action = Action::Input(InputAction {
-                recipe: to_mutate.clone(),
-            });
-            trace.steps.push(step);
             let mut ctx = TraceContext::new(PB::registry(), default_put_options().clone());
             let result = trace.execute(&mut ctx);
+            if term_path.len() == 0 {
+                println!("is root")
+            } else {
+                if to_mutate.height() == 1 {
+                    match to_mutate {
+                        Term::Application(_, _) => println!("type constant"),
+                        Term::Variable(_) => println!("type variable"),
+                        Term::Message(_) => println!("type message"),
+                    }
+                } else {
+                    println!("type application")
+                }
+            }
             if result.is_ok() {
                 // turn term into a message
                 if let Ok(evaluated) = to_mutate.evaluate(&ctx) {
-                    if to_mutate.height() == 1 {
-                        match to_mutate {
-                            Term::Application(_, _) => println!("type constant"),
-                            Term::Variable(_) => println!("type variable"),
-                            Term::Message(_) => println!("type message"),
-                        }
-                    }
                     // replace the term in the tree by OpaqueMessage
                     if let Some(message) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>()
                     {
-                        println!("message {}, {}", term_path.len(), to_mutate.height());
+                        println!("message {}, {} \n", term_path.len(), to_mutate.height());
                         let replace_with = Term::Message(Message::new(
                             to_mutate.resistant_id(),
                             *to_mutate.get_type_shape(),
@@ -627,7 +628,7 @@ where
                             .as_ref()
                             .downcast_ref::<PB::OpaqueProtocolMessage>()
                         {
-                            println!("opq message {}, {}", term_path.len(), to_mutate.height());
+                            println!("opq message {}, {} \n", term_path.len(), to_mutate.height());
                             let replace_with = Term::Message(Message::new(
                                 to_mutate.resistant_id(),
                                 *to_mutate.get_type_shape(),
@@ -636,7 +637,11 @@ where
                             let _ = replace(trace, step_index, term_path, replace_with);
                             Ok(MutationResult::Mutated)
                         } else {
-                            println!("not a message {}, {}", term_path.len(), to_mutate.height());
+                            println!(
+                                "not a message {}, {} \n",
+                                term_path.len(),
+                                to_mutate.height()
+                            );
                             Ok(MutationResult::Skipped) // this seems to happen WAYY too often
                         }
                     }

@@ -1,8 +1,8 @@
-//! This module provides[`Term`]sas well as iterators over them.
+//! This module provides[`Term`] as well as iterators over them.
 
 use std::{any::Any, fmt, fmt::Formatter, slice};
 
-use itertools::Itertools;
+use itertools::{max, Itertools};
 use serde::{Deserialize, Serialize};
 
 use super::atoms::{Function, Message, Variable};
@@ -86,6 +86,19 @@ impl<M: Matcher, PB: ProtocolBehavior> Term<M, PB> {
         *self = other;
     }
 
+    pub fn height(&self) -> u64 {
+        match self {
+            Term::Application(_, subterms) => {
+                if subterms.is_empty() {
+                    return 1;
+                } else {
+                    return 1 + subterms.iter().map(|t| t.height()).max().unwrap();
+                }
+            }
+            _ => 1,
+        }
+    }
+
     fn display_at_depth(&self, depth: usize) -> String {
         let tabs = "\t".repeat(depth);
         match self {
@@ -110,55 +123,6 @@ impl<M: Matcher, PB: ProtocolBehavior> Term<M, PB> {
         }
     }
 
-    /* pub fn follow_termpath(
-            &self,
-            path: TermPath,
-            new_term: Term<M, PB>,
-        ) -> Term<M, PB> {
-            match self {
-                Term::Variable(_) => new_term,
-                Term::Application(f, terms) => {
-                    if let n = path.pop{
-                        if path.is_empty(){
-                            terms[]
-                        }
-                    } else {
-                        panic!()
-                    }
-                }
-            }
-        }
-
-         // replaces sub-term in tree with a message
-        pub fn replace(
-            &self,
-            trace: Trace<M>,
-            path: TermPath,
-            msg: <PB as ProtocolBehavior>::ProtocolMessage,
-        ) -> Term<M, PB> {
-            match trace.steps[path.0].action {
-                Action::Output(_) => panic!("reservoir sample chose an output ?"),
-                Action::Input(term) => {
-                    let term = term.recipe;
-                    let new_term = Message(Message {
-                        unique_id: term.unique_id_term(),
-                        resistant_id: term.resistant_id(),
-                        message: msg,
-                    });
-                    term.follow_termpath(path, new_term)
-                }
-            }
-        }
-
-        // replaces sub-term in tree with an opaque message
-        pub fn replace_opaque(
-            &self,
-            trace: Trace<M>,
-            path: TracePath,
-            msg: <PB as ProtocolBehavior>::ProtocolMessage,
-        ) -> Term<M, PB> {
-        }
-    */
     pub fn evaluate<P: ProtocolBehavior>(
         &self,
         context: &TraceContext<P>,
