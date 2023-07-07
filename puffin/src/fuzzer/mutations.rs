@@ -12,11 +12,12 @@ use crate::{
     fuzzer::harness::default_put_options,
     fuzzer::term_zoo::TermZoo,
     protocol::{ProtocolBehavior, ProtocolMessage},
-    trace::{Trace, TraceContext},
+    trace::{self, Action, InputAction, Trace, TraceContext},
 };
 use libafl::mutators::Mutator;
 use log::error;
 
+/*
 // returns list of mutations
 pub fn trace_mutations<S, M: Matcher, PB: ProtocolBehavior>(
     min_trace_length: usize,
@@ -47,6 +48,19 @@ where
         SwapMutator::new(constraints),
         MakeMessage::new(constraints)
     )
+} */
+
+pub fn trace_mutations<S>(
+    min_trace_length: usize,
+    max_trace_length: usize,
+    constraints: TermConstraints,
+    fresh_zoo_after: u64,
+    signature: &'static Signature,
+) -> tuple_list_type!(MakeMessage<S>)
+where
+    S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
+{
+    tuple_list!(MakeMessage::new(constraints))
 }
 
 /// SWAP: Swaps a sub-term with a different sub-term which is part of the trace
@@ -83,7 +97,6 @@ where
         trace: &mut Trace<M, PB>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-        println!("swap mutator");
         let rand = state.rand_mut();
         if let Some((term_a, trace_path_a)) = choose(trace, self.constraints, rand) {
             if let Some(trace_path_b) = choose_term_path_filtered(
@@ -570,59 +583,76 @@ where
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
         //choose random sub tree
-        if let Some((to_mutate, (step_index, term_path))) = choose(trace, self.constraints, rand) {
-            // TODO : use step_index to shorten steps and runtime of the PUT
+        if let Some((to_mutate, (step_index, term_path))) =
+            choose(&trace.clone(), self.constraints, rand)
+        {
+            //shorten runtime of the PUT by cutting useless steps (new trace = trace[0..step_index])
+            /* let mut new_trace = trace.clone();
+            let mut steps = Vec::new();
+            for i in 0..step_index {
+                steps.push(new_trace.steps[i].clone());
+            }
+            new_trace.steps = steps; */
             // execute the PUT on the steps and recuperate the context
+            let mut step = trace.steps[step_index].clone();
+            step.action = Action::Input(InputAction {
+                recipe: to_mutate.clone(),
+            });
+            trace.steps.push(step);
             let mut ctx = TraceContext::new(PB::registry(), default_put_options().clone());
-            if let Ok(()) = trace.execute(&mut ctx) {
+            let result = trace.execute(&mut ctx);
+            if result.is_ok() {
                 // turn term into a message
                 if let Ok(evaluated) = to_mutate.evaluate(&ctx) {
+                    if to_mutate.height() == 1 {
+                        match to_mutate {
+                            Term::Application(_, _) => println!("type constant"),
+                            Term::Variable(_) => println!("type variable"),
+                            Term::Message(_) => println!("type message"),
+                        }
+                    }
                     // replace the term in the tree by OpaqueMessage
                     if let Some(message) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>()
                     {
+                        println!("message {}, {}", term_path.len(), to_mutate.height());
                         let replace_with = Term::Message(Message::new(
                             to_mutate.resistant_id(),
                             *to_mutate.get_type_shape(),
                             message.create_opaque(),
                         ));
-                        if let Some(_) = replace(trace, step_index, term_path, replace_with) {
-                            Ok(MutationResult::Mutated)
-                        } else {
-                            println!("function replace failed ! not opaque");
-                            Ok(MutationResult::Skipped)
-                        }
+                        let _ = replace(trace, step_index, term_path, replace_with);
+                        Ok(MutationResult::Mutated)
                     } else {
                         if let Some(opaque_message) = evaluated
                             .as_ref()
                             .downcast_ref::<PB::OpaqueProtocolMessage>()
                         {
+                            println!("opq message {}, {}", term_path.len(), to_mutate.height());
                             let replace_with = Term::Message(Message::new(
                                 to_mutate.resistant_id(),
                                 *to_mutate.get_type_shape(),
                                 opaque_message.clone(),
                             ));
-                            if let Some(_) = replace(trace, step_index, term_path, replace_with) {
-                                println!("checking if I mutated correctly : TODO");
-                                Ok(MutationResult::Mutated)
-                            } else {
-                                println!("function replaced failed ! opaque");
-                                Ok(MutationResult::Skipped)
-                            }
+                            let _ = replace(trace, step_index, term_path, replace_with);
+                            Ok(MutationResult::Mutated)
                         } else {
-                            println!("it wasn't a message or an opaque message");
-                            Ok(MutationResult::Skipped) // ???
+                            println!("not a message {}, {}", term_path.len(), to_mutate.height());
+                            Ok(MutationResult::Skipped) // this seems to happen WAYY too often
                         }
                     }
                 } else {
-                    println!("failed to evaluate");
+                    println!("failed evaluation");
                     Ok(MutationResult::Skipped)
                 }
             } else {
-                println!("failed to execute trace on the PUT");
+                match result {
+                    Ok(_) => panic!("not possible"),
+                    Err(error) => println!("failed execution {}", error),
+                }
                 Ok(MutationResult::Skipped)
             }
         } else {
-            println!("failed to choose a term");
+            println!("failed to choose term");
             Ok(MutationResult::Skipped)
         }
     }
@@ -2295,6 +2325,7 @@ pub mod util {
         reservoir
     }
 
+    // Algorithm A Chao here https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
     fn weighted_reservoir<'a, R: Rand, M: Matcher, PB: ProtocolBehavior>(
         trace: &'a Trace<M, PB>,
         constraints: TermConstraints,
@@ -2304,14 +2335,14 @@ pub mod util {
         let mut totalweight: u64 = 0;
 
         // calculate max tree height amongst the input steps
-        let mut max_height = 0;
+        let mut max_height = 1;
         for step in &trace.steps {
             match &step.action {
                 Action::Input(input) => {
                     let term = &input.recipe;
-                    let h = term.height();
-                    if h > max_height {
-                        max_height = h;
+                    let height = term.height();
+                    if height > max_height {
+                        max_height = height;
                     }
                 }
                 Action::Output(_) => {}
@@ -2345,7 +2376,7 @@ pub mod util {
                                     q.push((t, new_path))
                                 }
 
-                                // calculate height of current term (usual method)
+                                // calculate height of current term
                                 let height = term.0.height();
                                 //we have the height, apply A Chao
 
@@ -2354,19 +2385,19 @@ pub mod util {
                                 if reservoir.is_none() {
                                     reservoir = Some((term.0, (step_index, term.1)))
                                 } else {
-                                    if rand.between(1, weight / totalweight) == 1 {
+                                    if rand.between(1, totalweight) < weight + 1 {
                                         reservoir = Some((term.0, (step_index, term.1)))
                                     }
                                 }
                             }
                             _ => {
                                 // Apply A Chao with height = 1
-
+                                let weight = (2 as u64).pow(max_height as u32);
+                                totalweight += weight;
                                 if reservoir.is_none() {
                                     reservoir = Some((term.0, (step_index, term.1)))
                                 } else {
-                                    let weight = (2 as u64).pow(max_height as u32);
-                                    if rand.between(weight, weight / totalweight) == 1 {
+                                    if rand.between(1, totalweight) < weight + 1 {
                                         reservoir = Some((term.0, (step_index, term.1)))
                                     };
                                 }
@@ -2545,6 +2576,21 @@ pub mod util {
         reservoir_sample(trace, |_| true, constraints, rand).map(|ret| ret.0)
     }
 
+    pub fn choose_term_withfilter<
+        'a,
+        R: Rand,
+        M: Matcher,
+        PB: ProtocolBehavior,
+        P: Fn(&Term<M, PB>) -> bool + Copy,
+    >(
+        trace: &'a Trace<M, PB>,
+        filter: P,
+        constraints: TermConstraints,
+        rand: &mut R,
+    ) -> Option<(&'a Term<M, PB>, (usize, TermPath))> {
+        reservoir_sample(trace, filter, constraints, rand)
+    }
+
     pub fn choose_term_mut<'a, R: Rand, M: Matcher, PB: ProtocolBehavior>(
         trace: &'a mut Trace<M, PB>,
         constraints: TermConstraints,
@@ -2604,45 +2650,6 @@ pub mod util {
         rand: &mut R,
     ) -> Option<(&'a Term<M, PB>, TracePath)> {
         weighted_reservoir(trace, constraints, rand)
-    }
-
-    // used in testing MakeMessage
-    pub fn find_message<M: Matcher, PB: ProtocolBehavior>(trace: Trace<M, PB>) {
-        let mut a = false;
-
-        for step in trace.steps {
-            match step.action {
-                Action::Input(input) => {
-                    let term = input.recipe;
-                    let mut q = vec![term];
-                    while !q.is_empty() {
-                        if let Some(term) = q.pop() {
-                            match term {
-                                Term::Message(_) => a = true,
-                                Term::Application(_, subterms) => {
-                                    for t in subterms {
-                                        q.push(t);
-                                    }
-                                }
-                                _ => {}
-                            }
-                            if a == true {
-                                println!("i found a message !")
-                            } else {
-                                println!("i didn't find a message")
-                            }
-                        } else {
-                            panic!("q is empty")
-                        }
-                    }
-                }
-                Action::Output(_) => {}
-            }
-        }
-
-        if a == false {
-            panic!("No message created")
-        }
     }
 }
 
@@ -2922,5 +2929,98 @@ mod tests {
 
         assert!(std_dev < 30.0);
         assert_eq!(term_size, stats.len());
+    }
+
+    #[test]
+    fn test_weightedreservoir_sample_randomness() {
+        /// https://rust-lang-nursery.github.io/rust-cookbook/science/mathematics/statistics.html#standard-deviation
+        fn std_deviation(data: &[u32]) -> Option<f32> {
+            fn mean(data: &[u32]) -> Option<f32> {
+                let sum = data.iter().sum::<u32>() as f32;
+                let count = data.len();
+
+                match count {
+                    positive if positive > 0 => Some(sum / count as f32),
+                    _ => None,
+                }
+            }
+
+            match (mean(data), data.len()) {
+                (Some(data_mean), count) if count > 0 => {
+                    let variance = data
+                        .iter()
+                        .map(|value| {
+                            let diff = data_mean - (*value as f32);
+
+                            diff * diff
+                        })
+                        .sum::<f32>()
+                        / count as f32;
+
+                    Some(variance.sqrt())
+                }
+                _ => None,
+            }
+        }
+
+        let wanted_height = 2;
+
+        let trace = setup_simple_trace();
+        let term_size = trace.count_functions();
+
+        let mut rand = StdRand::with_seed(45);
+        let mut stats: HashMap<u32, u32> = HashMap::new();
+
+        for _ in 0..10000 {
+            let term = choose_with_weights(&trace, TermConstraints::default(), &mut rand).unwrap();
+
+            if term.0.height() == wanted_height {
+                let id = term.0.resistant_id();
+
+                let count: u32 = *stats.get(&id).unwrap_or(&0);
+                stats.insert(id, count + 1);
+            }
+        }
+
+        let std_dev =
+            std_deviation(stats.values().cloned().collect::<Vec<u32>>().as_slice()).unwrap();
+        /*        println!("{:?}", std_dev);
+        println!("{:?}", stats);*/
+
+        assert!(std_dev < 30.0);
+        // assert_eq!(term_size, stats.len());
+    }
+
+    #[test]
+    fn test_weightedreservoiragainstnormal() {
+        let trace = setup_simple_trace();
+        let mut rand = StdRand::with_seed(45);
+        let mut stats: HashMap<u32, u32> = HashMap::new();
+        let mut stats_depth: HashMap<u32, u32> = HashMap::new();
+        let mut normal_stats: HashMap<u32, u32> = HashMap::new();
+        let mut normal_stats_depth: HashMap<u32, u32> = HashMap::new();
+        for _ in 0..10000 {
+            let (term, (_, path)) =
+                choose_with_weights(&trace, TermConstraints::default(), &mut rand).unwrap();
+            let (term2, (_, path2)) =
+                choose(&trace, TermConstraints::default(), &mut rand).unwrap();
+            let l = term.height() as u32;
+            let l2 = term2.height() as u32;
+            let count: u32 = *stats.get(&l).unwrap_or(&0);
+            let count2: u32 = *normal_stats.get(&l2).unwrap_or(&0);
+            stats.insert(l, count + 1);
+            normal_stats.insert(l2, count2 + 1);
+            let l = path.len() as u32;
+            let l2 = path2.len() as u32;
+            let count: u32 = *stats_depth.get(&l).unwrap_or(&0);
+            let count2: u32 = *normal_stats_depth.get(&l2).unwrap_or(&0);
+            stats_depth.insert(l, count + 1);
+            normal_stats_depth.insert(l2, count2 + 1);
+        }
+        println!("{:?}", stats);
+        println!("{:?}", normal_stats);
+        //println!("\n");
+        //println!("{:?}", stats_depth);
+        //println!("{:?}", normal_stats_depth);
     }
 }

@@ -1,11 +1,15 @@
+use std::fmt::Display;
+
+use libafl::state::HasRand;
 use puffin::{
     agent::AgentName,
     algebra::{dynamic_function::DescribableFunction, Term},
     fuzzer::{
-        harness::set_default_put_options,
+        harness::{default_put_options, set_default_put_options},
         mutations::{
-            util::TermConstraints, BitFlip, MakeMessage, RemoveAndLiftMutator, RepeatMutator,
-            ReplaceMatchMutator, ReplaceReuseMutator,
+            util::{choose, choose_term, TermConstraints},
+            BitFlip, MakeMessage, RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator,
+            ReplaceReuseMutator,
         },
     },
     libafl::{
@@ -14,7 +18,9 @@ use puffin::{
         mutators::{MutationResult, Mutator},
         state::StdState,
     },
+    protocol::ProtocolBehavior,
     put::PutOptions,
+    term,
     trace::{Action, InputAction, Step, Trace, TraceContext},
 };
 
@@ -25,7 +31,7 @@ use crate::{
     test_utils::expect_crash,
     tls::{
         fn_impl::{
-            fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript,
+            fn_client_hello, fn_encrypt12, fn_seq_0, fn_seq_1, fn_sign_transcript,
             fn_signature_algorithm_extension, fn_support_group_extension,
         },
         seeds::_seed_client_attacker12,
@@ -236,15 +242,25 @@ fn test_makemessage() {
     let mut options: Vec<(String, String)> = Vec::new();
     set_default_put_options(PutOptions::new(options)).expect("failed to set default PUT options");
     let mut mutator = MakeMessage::new(TermConstraints::default());
-    let (mut trace, _) = _seed_client_attacker12(AgentName::first());
-    if mutator.mutate(&mut state, &mut trace, 0).unwrap() == MutationResult::Skipped {
-        println!("it skips ???")
-    };
+
+    for _ in 0..100 {
+        let (mut trace, _) = _seed_client_attacker12(AgentName::first());
+        mutator.mutate(&mut state, &mut trace, 0);
+    }
+
+    /*let mut a = false;
+    while !a {
+        match mutator.mutate(&mut state, &mut trace, 0) {
+            Ok(MutationResult::Mutated) => a = true,
+            Ok(MutationResult::Skipped) => a = false,
+            Err(error) => panic!("mutation failed : {}", error),
+        }
+    }
 
     //check to see if there is a Message now
     let mut a = false;
 
-    for step in trace.steps {
+    for step in trace.steps.clone() {
         match step.action {
             Action::Input(input) => {
                 let term = input.recipe;
@@ -252,16 +268,16 @@ fn test_makemessage() {
                 while !q.is_empty() {
                     if let Some(term) = q.pop() {
                         match term {
-                            Term::Message(_) => a = true,
+                            Term::Message(_) => {
+                                a = true;
+                                println!("i found a message !")
+                            }
                             Term::Application(_, subterms) => {
                                 for t in subterms {
                                     q.push(t);
                                 }
                             }
                             _ => {}
-                        }
-                        if a == true {
-                            println!("i found a message !")
                         }
                     } else {
                         panic!("q is empty")
@@ -276,5 +292,14 @@ fn test_makemessage() {
         panic!("No message created")
     }
 
-    // let mut mutator = BitFlip::new();
+    let mut mutator = BitFlip::new();
+
+    match mutator.mutate(&mut state, &mut trace, 1) {
+        Ok(result) => {
+            if result == MutationResult::Skipped {
+                panic!("there was a message, but it skipped")
+            }
+        }
+        Err(error) => panic!("Failed BitFlip mutation : {}", error),
+    }*/
 }
