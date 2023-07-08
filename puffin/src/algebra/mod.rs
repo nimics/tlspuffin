@@ -417,7 +417,7 @@ pub mod test_signature {
         }
     }
 
-    #[derive(Hash, PartialEq, Deserialize)]
+    #[derive(Hash, PartialEq, Deserialize, Eq)]
     pub struct TestOpaqueMessage;
 
     impl Clone for TestOpaqueMessage {
