@@ -10,9 +10,6 @@ use std::{
     marker::PhantomData,
 };
 
-use downcast_rs::impl_downcast;
-use dyn_clone::DynClone;
-
 use libafl::prelude::HasBytesVec;
 
 use rand::random;
