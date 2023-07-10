@@ -3,7 +3,7 @@ use std::fmt::Display;
 use libafl::state::HasRand;
 use puffin::{
     agent::AgentName,
-    algebra::{dynamic_function::DescribableFunction, Term},
+    algebra::{self, dynamic_function::DescribableFunction, Term},
     fuzzer::{
         harness::{default_put_options, set_default_put_options},
         mutations::{
@@ -239,12 +239,41 @@ fn test_mutate_seed_cve_2021_3449() {
 fn test_execute() {
     let mut state = create_state();
     let (mut trace, _) = _seed_client_attacker12(AgentName::first());
-    let mut mutator = RemoveAndLiftMutator::new(TermConstraints::default());
-    mutator.mutate(&mut state, &mut trace, 0);
-    let mut ctx = TraceContext::new(ProtocolBehavior::registry(), default_put_options().clone());
+    set_default_put_options(PutOptions::default()).expect("failed to set default PUT options");
+    let term = puffin::fuzzer::mutations::util::choose_term(
+        &trace,
+        TermConstraints::default(),
+        state.rand_mut(),
+    )
+    .unwrap();
+    println!("Term chosen is of type {}", term.get_type_shape());
+    let mut ctx = TraceContext::new(
+        TLSProtocolBehavior::registry(),
+        default_put_options().clone(),
+    );
     match trace.execute(&mut ctx) {
+        Err(error) => panic!("failed execution of the PUT : {}", error),
         Ok(_) => {}
-        Err(error) => panic!("failed execution : {}", error),
+    };
+    match term.evaluate(&ctx) {
+        Err(error) => panic!("failed to evaluate term : {}", error),
+        Ok(evaluated) => {
+            if let Some(msg) = evaluated
+                .as_ref()
+                .downcast_ref::<TLSProtocolBehavior::Message>()
+            {
+                println!("it's a message")
+            } else if let Some(opaque_message) = evaluated
+                .as_ref()
+                .downcast_ref::<TLSProtocolBehavior::OpaqueMessage>(
+            ) {
+                println!("it's an opaque message")
+            } else if let Some(payload) = evaluated.as_ref().downcast_ref::<Vec<u8>>() {
+                println!("it's a Vec u8")
+            } else if let Some(payload) = evaluated.as_ref().downcast_ref::<u8>() {
+                println!("it's u8")
+            } // else if...
+        }
     }
 }
 
