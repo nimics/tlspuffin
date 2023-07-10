@@ -2,13 +2,19 @@
 //! This also implements the serializability of terms.
 //!
 use std::{
+    any::{Any, TypeId},
+    boxed::Box,
     fmt,
     fmt::Formatter,
     hash::{Hash, Hasher},
+    marker::PhantomData,
 };
 
+use downcast_rs::impl_downcast;
+use dyn_clone::DynClone;
+
 use libafl::prelude::HasBytesVec;
-use nix::dir::Type;
+
 use rand::random;
 use serde::{Deserialize, Serialize};
 
@@ -18,7 +24,7 @@ use crate::{
         dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
         remove_prefix, Matcher,
     },
-    protocol::ProtocolBehavior,
+    protocol::{OpaqueProtocolMessage, ProtocolBehavior},
     trace::Query,
 };
 
@@ -339,7 +345,7 @@ mod fn_container {
 
 /// Messages
 
-#[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Hash, Clone, PartialEq, Eq)]
 #[serde(bound = "PB : ProtocolBehavior")]
 pub struct Message<PB: ProtocolBehavior> {
     /// Unique ID of this variable. Uniqueness is guaranteed across all[`Term`]sever created. Cloning
@@ -350,43 +356,38 @@ pub struct Message<PB: ProtocolBehavior> {
     /// type, this type depends on the structure that it replaces
     pub typ: TypeShape,
     /// the message, it needs to be a message for evaluated function
-    pub message: <PB>::OpaqueProtocolMessage,
+    pub info: <PB>::OpaqueProtocolMessage,
+    pub phantom: PhantomData<PB>,
 }
 
 impl<PB: ProtocolBehavior> Message<PB> {
-    pub fn new(id: u32, typ: TypeShape, message: <PB>::OpaqueProtocolMessage) -> Message<PB> {
+    pub fn new(id: u32, typ: TypeShape, info: <PB>::OpaqueProtocolMessage) -> Message<PB> {
         Message {
             unique_id: id,
             resistant_id: id,
             typ,
-            message,
+            info,
+            phantom: std::marker::PhantomData,
         }
+    }
+
+    pub fn get_info(&self) -> <PB>::OpaqueProtocolMessage {
+        self.info.clone()
     }
 }
 
 impl<PB: ProtocolBehavior> HasBytesVec for Message<PB> {
     fn bytes(&self) -> &[u8] {
-        self.message.bytes()
+        self.info.bytes()
     }
 
     fn bytes_mut(&mut self) -> &mut Vec<u8> {
-        self.message.bytes_mut()
-    }
-}
-
-impl<PB: ProtocolBehavior> Clone for Message<PB> {
-    fn clone(&self) -> Self {
-        Message {
-            unique_id: random(),
-            resistant_id: self.resistant_id,
-            typ: self.typ,
-            message: self.message.clone(),
-        }
+        self.info.bytes_mut()
     }
 }
 
 impl<PB: ProtocolBehavior> fmt::Display for Message<PB> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{}/{}", self.message, remove_prefix(self.typ.name))
+        write!(f, "{}/{}", self.info, remove_prefix(self.typ.name))
     }
 }

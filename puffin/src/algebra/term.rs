@@ -152,7 +152,7 @@ impl<M: Matcher, PB: ProtocolBehavior> Term<M, PB> {
                 let result: Result<Box<dyn Any>, FnError> = dynamic_fn(&dynamic_args);
                 result.map_err(Error::Fn)
             }
-            Term::Message(msg) => Ok(Box::new(msg.message.clone())),
+            Term::Message(msg) => Ok(Box::new(msg.get_info())),
         }
     }
 }

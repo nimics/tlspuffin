@@ -236,6 +236,19 @@ fn test_mutate_seed_cve_2021_3449() {
 }
 
 #[test]
+fn test_execute() {
+    let mut state = create_state();
+    let (mut trace, _) = _seed_client_attacker12(AgentName::first());
+    let mut mutator = RemoveAndLiftMutator::new(TermConstraints::default());
+    mutator.mutate(&mut state, &mut trace, 0);
+    let mut ctx = TraceContext::new(ProtocolBehavior::registry(), default_put_options().clone());
+    match trace.execute(&mut ctx) {
+        Ok(_) => {}
+        Err(error) => panic!("failed execution : {}", error),
+    }
+}
+
+#[test]
 fn test_makemessage() {
     let mut state = create_state();
     let _server = AgentName::first();

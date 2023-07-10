@@ -596,19 +596,25 @@ where
             // execute the PUT on the steps and recuperate the context
             let mut ctx = TraceContext::new(PB::registry(), default_put_options().clone());
             let result = trace.execute(&mut ctx);
+
             if term_path.len() == 0 {
-                println!("is root")
+                println!("is root, {}", to_mutate.get_type_shape())
             } else {
                 if to_mutate.height() == 1 {
                     match to_mutate {
-                        Term::Application(_, _) => println!("type constant"),
-                        Term::Variable(_) => println!("type variable"),
-                        Term::Message(_) => println!("type message"),
+                        Term::Application(_, _) => {
+                            println!("type constant {}", to_mutate.get_type_shape())
+                        }
+                        Term::Variable(_) => {
+                            println!("type variable {}", to_mutate.get_type_shape())
+                        }
+                        Term::Message(_) => println!("type message {}", to_mutate.get_type_shape()),
                     }
                 } else {
-                    println!("type application")
+                    println!("type application {}", to_mutate.get_type_shape())
                 }
             }
+
             if result.is_ok() {
                 // turn term into a message
                 if let Ok(evaluated) = to_mutate.evaluate(&ctx) {
