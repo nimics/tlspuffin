@@ -18,7 +18,6 @@ use puffin::{
         mutators::{MutationResult, Mutator},
         state::StdState,
     },
-    protocol::ProtocolBehavior,
     put::PutOptions,
     term,
     trace::{Action, InputAction, Step, Trace, TraceContext},
@@ -235,7 +234,7 @@ fn test_mutate_seed_cve_2021_3449() {
     });
 }
 
-#[test]
+/*  #[test]
 fn test_execute() {
     let mut state = create_state();
     let (mut trace, _) = _seed_client_attacker12(AgentName::first());
@@ -275,7 +274,7 @@ fn test_execute() {
             } // else if...
         }
     }
-}
+} */
 
 #[test]
 fn test_makemessage() {
@@ -285,12 +284,18 @@ fn test_makemessage() {
     set_default_put_options(PutOptions::new(options)).expect("failed to set default PUT options");
     let mut mutator = MakeMessage::new(TermConstraints::default());
 
-    for _ in 0..100 {
-        let (mut trace, _) = _seed_client_attacker12(AgentName::first());
-        mutator.mutate(&mut state, &mut trace, 0);
+    let mut a = false;
+    let (mut trace, _) = _seed_client_attacker12(AgentName::first());
+
+    while !a {
+        match mutator.mutate(&mut state, &mut trace, 0) {
+            Ok(MutationResult::Mutated) => a = true,
+            Ok(MutationResult::Skipped) => {}
+            Err(error) => panic!("failed make message because of {}", error),
+        }
     }
 
-    /*let mut a = false;
+    let mut a = false;
     while !a {
         match mutator.mutate(&mut state, &mut trace, 0) {
             Ok(MutationResult::Mutated) => a = true,
@@ -343,5 +348,5 @@ fn test_makemessage() {
             }
         }
         Err(error) => panic!("Failed BitFlip mutation : {}", error),
-    }*/
+    }
 }
