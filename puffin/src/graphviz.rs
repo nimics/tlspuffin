@@ -107,7 +107,7 @@ impl<M: Matcher, PB: ProtocolBehavior> Trace<M, PB> {
     }
 }
 
-impl<M: Matcher, PB: ProtocolBehavior> Term<M, PB> {
+impl<M: Matcher> Term<M> {
     fn unique_id(&self, tree_mode: bool, cluster_id: usize) -> String {
         match self {
             Term::Variable(variable) => {
@@ -126,9 +126,13 @@ impl<M: Matcher, PB: ProtocolBehavior> Term<M, PB> {
             }
             Term::Message(message) => {
                 if tree_mode {
-                    format!("m_{}_{}", cluster_id, message.unique_id)
+                    format!(
+                        "m_{}_{}",
+                        cluster_id,
+                        message.old_term.as_ref().get_unique_id()
+                    )
                 } else {
-                    format!("m_{}", message.resistant_id)
+                    format!("m_{}", message.old_term.as_ref().resistant_id())
                 }
             }
         }
@@ -145,7 +149,7 @@ impl<M: Matcher, PB: ProtocolBehavior> Term<M, PB> {
     }
 
     fn collect_statements(
-        term: &Term<M, PB>,
+        term: &Term<M>,
         tree_mode: bool,
         cluster_id: usize,
         statements: &mut Vec<String>,

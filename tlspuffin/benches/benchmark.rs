@@ -77,7 +77,7 @@ fn benchmark_trace(c: &mut Criterion) {
     let mut group = c.benchmark_group("trace");
 
     group.bench_function("term clone", |b| {
-        let client_hello: Term<TlsQueryMatcher, TLSProtocolBehavior> = term! {
+        let client_hello: Term<TlsQueryMatcher> = term! {
               fn_client_hello(
                 fn_protocol_version12,
                 fn_new_random,

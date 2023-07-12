@@ -28,10 +28,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use std::{
-    fmt::Debug,
-    hash::{Hash, Hasher},
-};
+use std::{fmt::Debug, hash::Hash};
 
 use once_cell::sync::OnceCell;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -119,9 +116,8 @@ impl<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> TryFrom<&MessageResult<M, 
 pub mod test_signature {
     use core::fmt;
     use std::{
-        any::{Any, TypeId},
+        any::Any,
         fmt::{Debug, Display, Formatter},
-        hash::Hasher,
         io::Read,
     };
 
@@ -136,7 +132,8 @@ pub mod test_signature {
         define_signature,
         error::Error,
         protocol::{
-            OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer,
+            AnyProtocolMessage, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage,
+            ProtocolMessageDeframer,
         },
         put::{Put, PutName},
         put_registry::{Factory, PutRegistry},
@@ -339,6 +336,13 @@ pub mod test_signature {
         }
     }
 
+    fn setup_term() -> TestTerm {
+        term!(fn_client_extensions_append(
+            fn_client_extensions_new,
+            fn_client_extensions_new
+        ))
+    }
+
     define_signature!(
         TEST_SIGNATURE,
         fn_hmac256_new_key
@@ -369,7 +373,7 @@ pub mod test_signature {
     );
 
     pub type TestTrace = Trace<AnyMatcher, TestProtocolBehavior>;
-    pub type TestTerm = Term<AnyMatcher, TestProtocolBehavior>;
+    pub type TestTerm = Term<AnyMatcher>;
 
     pub struct TestClaim;
 
@@ -501,16 +505,6 @@ pub mod test_signature {
         }
     }
 
-    impl HasBytesVec for TestMessage {
-        fn bytes(&self) -> &[u8] {
-            panic!("Not implemented for test stub");
-        }
-
-        fn bytes_mut(&mut self) -> &mut Vec<u8> {
-            panic!("Not implemented for test stub");
-        }
-    }
-
     impl ProtocolMessage<TestOpaqueMessage> for TestMessage {
         fn create_opaque(&self) -> TestOpaqueMessage {
             panic!("Not implemented for test stub");
@@ -522,6 +516,30 @@ pub mod test_signature {
 
         fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
             panic!("Not implemented for test stub");
+        }
+    }
+
+    pub enum TestAnyMessage {}
+
+    impl Debug for TestAnyMessage {
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            panic!("not implemented for a test stub")
+        }
+    }
+
+    impl Codec for TestAnyMessage {
+        fn encode(&self, bytes: &mut Vec<u8>) {
+            panic!("not implemented for a test stub");
+        }
+
+        fn read(_: &mut Reader) -> Option<Self> {
+            panic!("not implemented for a test stub");
+        }
+    }
+
+    impl AnyProtocolMessage for TestAnyMessage {
+        fn downcast(boxed: Box<dyn Any>) -> Option<Self> {
+            panic!("not implemented for a test stub")
         }
     }
 
@@ -554,6 +572,7 @@ pub mod test_signature {
         type SecurityViolationPolicy = TestSecurityViolationPolicy;
         type ProtocolMessage = TestMessage;
         type OpaqueProtocolMessage = TestOpaqueMessage;
+        type AnyProtocolMessage = TestAnyMessage;
         type Matcher = AnyMatcher;
 
         fn signature() -> &'static Signature {
@@ -664,7 +683,7 @@ mod tests {
         let variable: Variable<AnyMatcher> =
             Signature::new_var(TypeShape::of::<Vec<u8>>(), AgentName::first(), None, 0);
 
-        let generated_term: Term<AnyMatcher, TestProtocolBehavior> = Term::Application(
+        let generated_term: Term<AnyMatcher> = Term::Application(
             hmac256,
             vec![
                 Term::Application(hmac256_new_key, vec![]),
@@ -718,7 +737,7 @@ mod tests {
         let _string = Signature::new_function(&example_op_c).shape();
         //println!("{}", string);
 
-        let constructed_term: Term<AnyMatcher, TestProtocolBehavior> = Term::Application(
+        let constructed_term: Term<AnyMatcher> = Term::Application(
             Signature::new_function(&example_op_c),
             vec![
                 Term::Application(

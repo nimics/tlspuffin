@@ -473,7 +473,7 @@ pub struct Step<M: Matcher, PB: ProtocolBehavior> {
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 #[serde(bound = "M: Matcher")]
 pub enum Action<M: Matcher, PB: ProtocolBehavior> {
-    Input(InputAction<M, PB>),
+    Input(InputAction<M>),
     Output(OutputAction<M, PB>),
 }
 
@@ -579,21 +579,29 @@ impl<M: Matcher, PB: ProtocolBehavior> fmt::Display for OutputAction<M, PB> {
 /// by calling `add_to_inbound(...)` and then drives the state machine forward.
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 #[serde(bound = "M: Matcher")]
-pub struct InputAction<M: Matcher, PB: ProtocolBehavior> {
-    pub recipe: Term<M, PB>,
+pub struct InputAction<M: Matcher> {
+    pub recipe: Term<M>,
+    // pub phantom_pb: PhantomData<PB>,
 }
 
 /// Processes messages in the inbound channel. Uses the recipe field to evaluate to a rustls Message
 /// or a MultiMessage.
-impl<M: Matcher, PB: ProtocolBehavior> InputAction<M, PB> {
-    pub fn new_step(agent: AgentName, recipe: Term<M, PB>) -> Step<M, PB> {
+impl<M: Matcher> InputAction<M> {
+    pub fn new_step<PB: ProtocolBehavior>(agent: AgentName, recipe: Term<M>) -> Step<M, PB> {
         Step {
             agent,
-            action: Action::Input(InputAction { recipe }),
+            action: Action::Input(InputAction {
+                recipe,
+                // phantom_pb: Default::default(),
+            }),
         }
     }
 
-    fn input(&self, step: &Step<M, PB>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    fn input<PB: ProtocolBehavior>(
+        &self,
+        step: &Step<M, PB>,
+        ctx: &mut TraceContext<PB>,
+    ) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
@@ -621,7 +629,7 @@ impl<M: Matcher, PB: ProtocolBehavior> InputAction<M, PB> {
     }
 }
 
-impl<M: Matcher, PB: ProtocolBehavior> fmt::Display for InputAction<M, PB> {
+impl<M: Matcher> fmt::Display for InputAction<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "InputAction:\n{}", self.recipe)
     }

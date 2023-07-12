@@ -1032,7 +1032,7 @@ pub fn _seed_client_attacker12(
     server: AgentName,
 ) -> (
     Trace<TlsQueryMatcher, TLSProtocolBehavior>,
-    Term<TlsQueryMatcher, TLSProtocolBehavior>,
+    Term<TlsQueryMatcher>,
 ) {
     let client_hello = term! {
           fn_client_hello(
@@ -1428,9 +1428,9 @@ pub fn _seed_client_attacker_full(
     server: AgentName,
 ) -> (
     Trace<TlsQueryMatcher, TLSProtocolBehavior>,
-    Term<TlsQueryMatcher, TLSProtocolBehavior>,
-    Term<TlsQueryMatcher, TLSProtocolBehavior>,
-    Term<TlsQueryMatcher, TLSProtocolBehavior>,
+    Term<TlsQueryMatcher>,
+    Term<TlsQueryMatcher>,
+    Term<TlsQueryMatcher>,
 ) {
     let client_hello = term! {
           fn_client_hello(

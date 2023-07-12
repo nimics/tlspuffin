@@ -37,7 +37,7 @@ impl<M: Matcher, PB: ProtocolBehavior> Trace<M, PB> {
     }
 }
 
-impl<M: Matcher, PB: ProtocolBehavior> Term<M, PB> {
+impl<M: Matcher> Term<M> {
     pub fn count_functions_by_name(&self, find_name: &'static str) -> usize {
         let mut found = 0;
         for term in self.into_iter() {
