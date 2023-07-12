@@ -1,6 +1,7 @@
 //! This module provides an enum for terms. A term can either be a Variable or a Function.
 //! This also implements the serializability of terms.
 //!
+use core::panic;
 use std::{
     any::{Any, TypeId},
     boxed::Box,
@@ -24,6 +25,8 @@ use crate::{
     protocol::{OpaqueProtocolMessage, ProtocolBehavior},
     trace::Query,
 };
+
+use super::Term;
 
 /// A variable symbol with fixed type.
 #[derive(Serialize, Deserialize, Debug)]
@@ -343,48 +346,34 @@ mod fn_container {
 /// Messages
 
 #[derive(Serialize, Deserialize, Debug, Hash, Clone, PartialEq, Eq)]
-#[serde(bound = "PB : ProtocolBehavior")]
-pub struct Message<PB: ProtocolBehavior> {
+#[serde(bound = "M: Matcher")]
+pub struct ByteMessage<M: Matcher> {
     /// Unique ID of this variable. Uniqueness is guaranteed across all[`Term`]sever created. Cloning
     /// change this ID.
-    pub unique_id: u32,
-    /// ID of this variable. This id stays the same during cloning.
-    pub resistant_id: u32,
-    /// type, this type depends on the structure that it replaces
-    pub typ: TypeShape,
+    pub old_term: Box<Term<M>>,
     /// the message, it needs to be a message for evaluated function
-    pub info: <PB>::OpaqueProtocolMessage,
-    pub phantom: PhantomData<PB>,
+    pub payload: Vec<u8>,
 }
 
-impl<PB: ProtocolBehavior> Message<PB> {
-    pub fn new(id: u32, typ: TypeShape, info: <PB>::OpaqueProtocolMessage) -> Message<PB> {
-        Message {
-            unique_id: id,
-            resistant_id: id,
-            typ,
-            info,
-            phantom: std::marker::PhantomData,
-        }
-    }
-
-    pub fn get_info(&self) -> <PB>::OpaqueProtocolMessage {
-        self.info.clone()
+impl<M: Matcher> ByteMessage<M> {
+    pub fn new(old_term: Box<Term<M>>, payload: Vec<u8>) -> ByteMessage<M> {
+        ByteMessage { old_term, payload }
     }
 }
 
-impl<PB: ProtocolBehavior> HasBytesVec for Message<PB> {
+impl<M: Matcher> HasBytesVec for ByteMessage<M> {
     fn bytes(&self) -> &[u8] {
-        self.info.bytes()
+        &self.payload[..]
     }
 
     fn bytes_mut(&mut self) -> &mut Vec<u8> {
-        self.info.bytes_mut()
+        &mut self.payload
     }
 }
 
-impl<PB: ProtocolBehavior> fmt::Display for Message<PB> {
+impl<M: Matcher> fmt::Display for ByteMessage<M> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{}/{}", self.info, remove_prefix(self.typ.name))
+        write!(f, "Byte Message : ");
+        self.old_term.as_ref().fmt(f)
     }
 }
