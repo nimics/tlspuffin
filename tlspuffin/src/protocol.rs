@@ -18,8 +18,8 @@ use crate::{
             msgs,
             msgs::{
                 deframer::MessageDeframer,
-                handshake::{HandshakePayload, ServerKeyExchangePayload},
-                message::{Message, MessagePayload, OpaqueMessage},
+                handshake::{ClientExtension, HandshakePayload, ServerKeyExchangePayload},
+                message::{AnyMessage, Message, MessagePayload, OpaqueMessage},
             },
         },
         seeds::create_corpus,
@@ -203,6 +203,7 @@ impl ProtocolBehavior for TLSProtocolBehavior {
     type SecurityViolationPolicy = TlsSecurityViolationPolicy;
     type ProtocolMessage = Message;
     type OpaqueProtocolMessage = OpaqueMessage;
+    type AnyProtocolMessage = AnyMessage;
     type Matcher = TlsQueryMatcher;
 
     fn signature() -> &'static Signature {

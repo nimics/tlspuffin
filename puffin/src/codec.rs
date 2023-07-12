@@ -194,6 +194,18 @@ pub fn encode_vec_u8<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
     bytes[len_offset] = len.min(0xff) as u8;
 }
 
+pub fn encode_vec_vec_u8(bytes: &mut Vec<u8>, items: &[Vec<u8>]) {
+    let len_offset = bytes.len();
+    bytes.push(0);
+
+    for i in items {
+        bytes.extend_from_slice(i)
+    }
+
+    let len = bytes.len() - len_offset - 1;
+    bytes[len_offset] = len.min(0xff) as u8;
+}
+
 pub fn encode_vec_u16<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
     let len_offset = bytes.len();
     bytes.extend(&[0, 0]);

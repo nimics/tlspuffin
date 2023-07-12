@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     fmt::{Debug, Display},
     hash::Hash,
 };
@@ -28,9 +29,7 @@ pub trait ProtocolMessage<O: OpaqueProtocolMessage>: Clone + Debug + Codec {
 /// A non-structured version of [`ProtocolMessage`]. This can be used for example for encrypted messages
 /// which do not have a structure.
 /// micol : added trait HasBytesVec
-pub trait OpaqueProtocolMessage:
-    Clone + Debug + Codec + HasBytesVec + PartialEq + Display + Serialize + DeserializeOwned + Hash + Eq
-{
+pub trait OpaqueProtocolMessage: Clone + Debug + Codec + HasBytesVec {
     fn debug(&self, info: &str);
     fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error>;
 }
@@ -62,12 +61,12 @@ pub trait ProtocolMessageDeframer {
 ///
 
 pub trait ProtocolBehavior: 'static + Clone + Hash + Serialize + DeserializeOwned {
-    // micol : added Clone
     type Claim: Claim;
     type SecurityViolationPolicy: SecurityViolationPolicy<Self::Claim>;
 
     type ProtocolMessage: ProtocolMessage<Self::OpaqueProtocolMessage>;
     type OpaqueProtocolMessage: OpaqueProtocolMessage;
+    type AnyProtocolMessage: AnyProtocolMessage; // this contains all possible messages
 
     type Matcher: Matcher
         + for<'a> TryFrom<&'a MessageResult<Self::ProtocolMessage, Self::OpaqueProtocolMessage>>;
@@ -113,4 +112,8 @@ impl<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> MessageResult<M, O> {
         // TODO: Should we return here or use None?
         <<PB as ProtocolBehavior>::Matcher as TryFrom<&MessageResult<M, O>>>::try_from(self).ok()
     }
+}
+
+pub trait AnyProtocolMessage: Codec {
+    fn downcast(boxed: Box<dyn Any>) -> Option<Self>;
 }

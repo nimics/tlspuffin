@@ -1,17 +1,33 @@
 use std::{convert::TryFrom, fmt::Display};
 
-use puffin::codec::{Codec, Reader};
+use crate::{
+    protocol::TLSProtocolBehavior,
+    tls::rustls::{
+        error::Error,
+        hash_hs::HandshakeHash,
+        key::Certificate,
+        msgs::{
+            alert::AlertMessagePayload,
+            base::Payload,
+            ccs::ChangeCipherSpecPayload,
+            enums::{AlertDescription, AlertLevel, ContentType, HandshakeType, ProtocolVersion},
+            handshake::HandshakeMessagePayload,
+            heartbeat::HeartbeatPayload,
+        },
+    },
+};
+use puffin::{
+    codec::{encode_vec_u8, encode_vec_vec_u8, Codec, Reader},
+    protocol::AnyProtocolMessage,
+};
 use serde::{Deserialize, Serialize};
 
-use crate::tls::rustls::{
-    error::Error,
-    msgs::{
-        alert::AlertMessagePayload,
-        base::Payload,
-        ccs::ChangeCipherSpecPayload,
-        enums::{AlertDescription, AlertLevel, ContentType, HandshakeType, ProtocolVersion},
-        handshake::HandshakeMessagePayload,
-        heartbeat::HeartbeatPayload,
+use super::{
+    enums::{CipherSuite, Compression, NamedGroup, SignatureScheme},
+    handshake::{
+        CertReqExtension, CertificateEntry, CertificateExtension, ClientExtension,
+        HelloRetryExtension, NewSessionTicketExtension, OCSPCertificateStatusRequest,
+        PresharedKeyIdentity, Random, ServerExtension, SessionID,
     },
 };
 
@@ -239,7 +255,7 @@ pub struct Message {
 
 impl Codec for Message {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        self.encode(bytes);
+        self.payload.encode(bytes);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
@@ -319,4 +335,186 @@ pub enum MessageError {
     IllegalLength,
     IllegalContentType,
     IllegalProtocolVersion,
+}
+
+#[derive(Debug)]
+pub enum AnyMessage {
+    Message(Message),
+    OpaqueMessage(OpaqueMessage),
+
+    Bitstring(Vec<u8>),
+    Bitstringstring(Vec<Vec<u8>>),
+    Constant64(u64),
+
+    CertificateEntry(CertificateEntry),
+    VecCertificateEntry(Vec<CertificateEntry>),
+    ClientExtension(ClientExtension),
+    VecClientExtension(Vec<ClientExtension>),
+    ServerExtension(ServerExtension),
+    VecServerExtension(Vec<ServerExtension>),
+    HelloRetryExtension(HelloRetryExtension),
+    VecHelloRetryExtension(Vec<HelloRetryExtension>),
+    CertReqExtension(CertReqExtension),
+    VecCertReqExtension(Vec<CertReqExtension>),
+    CertificateExtension(CertificateExtension),
+    VecCertificateExtension(Vec<CertificateExtension>),
+    NewSessionTicketExtension(NewSessionTicketExtension),
+    VecNewSessionTicketExtension(Vec<NewSessionTicketExtension>),
+    PresharedKey(PresharedKeyIdentity),
+    VecPresharedKey(Vec<PresharedKeyIdentity>),
+    CipherSuite(CipherSuite),
+    VecCipherSuite(Vec<CipherSuite>),
+    Certificate(Certificate),
+    VecCertificate(Vec<Certificate>),
+    Compression(Compression),
+    VecCompression(Vec<Compression>),
+
+    SignatureScheme(SignatureScheme),
+    OCSPCertificateStatusRequest(OCSPCertificateStatusRequest),
+    NamedGroup(NamedGroup),
+    ProtocolVersion(ProtocolVersion),
+    SessionID(SessionID),
+    Random(Random),
+}
+
+impl Codec for AnyMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        match self {
+            AnyMessage::Message(msg) => msg.encode(bytes),
+            AnyMessage::OpaqueMessage(msg) => msg.encode(bytes),
+
+            AnyMessage::Bitstring(v) => bytes.extend_from_slice(v),
+            AnyMessage::Bitstringstring(vv) => encode_vec_vec_u8(bytes, vv),
+            AnyMessage::Constant64(n) => n.encode(bytes),
+
+            AnyMessage::CertificateEntry(ce) => ce.encode(bytes),
+            AnyMessage::VecCertificateEntry(vce) => encode_vec_u8(bytes, &vce),
+
+            AnyMessage::ClientExtension(ce) => ce.encode(bytes),
+            AnyMessage::VecClientExtension(vce) => encode_vec_u8(bytes, &vce),
+
+            AnyMessage::ServerExtension(se) => se.encode(bytes),
+            AnyMessage::VecServerExtension(vse) => encode_vec_u8(bytes, &vse),
+
+            AnyMessage::HelloRetryExtension(re) => re.encode(bytes),
+            AnyMessage::VecHelloRetryExtension(vre) => encode_vec_u8(bytes, &vre),
+
+            AnyMessage::CertReqExtension(cre) => cre.encode(bytes),
+            AnyMessage::VecCertReqExtension(vcre) => encode_vec_u8(bytes, &vcre),
+
+            AnyMessage::CertificateExtension(ce) => ce.encode(bytes),
+            AnyMessage::VecCertificateExtension(vce) => encode_vec_u8(bytes, &vce),
+
+            AnyMessage::NewSessionTicketExtension(nste) => nste.encode(bytes),
+            AnyMessage::VecNewSessionTicketExtension(vnste) => encode_vec_u8(bytes, &vnste),
+
+            AnyMessage::PresharedKey(psk) => psk.encode(bytes),
+            AnyMessage::VecPresharedKey(vpsk) => encode_vec_u8(bytes, &vpsk),
+
+            AnyMessage::CipherSuite(cs) => cs.encode(bytes),
+            AnyMessage::VecCipherSuite(vcs) => encode_vec_u8(bytes, &vcs),
+
+            AnyMessage::Certificate(c) => c.encode(bytes),
+            AnyMessage::VecCertificate(vc) => encode_vec_u8(bytes, &vc),
+
+            AnyMessage::Compression(c) => c.encode(bytes),
+            AnyMessage::VecCompression(vc) => encode_vec_u8(bytes, &vc),
+
+            AnyMessage::SignatureScheme(sc) => sc.encode(bytes),
+            AnyMessage::OCSPCertificateStatusRequest(ocsp) => ocsp.encode(bytes),
+            AnyMessage::NamedGroup(ng) => ng.encode(bytes),
+            AnyMessage::ProtocolVersion(pv) => pv.encode(bytes),
+            AnyMessage::SessionID(id) => id.encode(bytes),
+            AnyMessage::Random(r) => r.encode(bytes),
+        }
+    }
+
+    fn read(_: &mut Reader) -> Option<Self> {
+        panic!("not needed")
+    }
+}
+
+impl AnyProtocolMessage for AnyMessage {
+    fn downcast(boxed: Box<dyn std::any::Any>) -> Option<Self> {
+        if let Some(message) = boxed.as_ref().downcast_ref::<Message>() {
+            Some(AnyMessage::Message(message.clone()))
+        } else if let Some(opaque_message) = boxed.as_ref().downcast_ref::<OpaqueMessage>() {
+            Some(AnyMessage::OpaqueMessage(opaque_message.clone()))
+        } else if let Some(v) = boxed.as_ref().downcast_ref::<Vec<u8>>() {
+            Some(AnyMessage::Bitstring(v.clone()))
+        } else if let Some(v) = boxed.as_ref().downcast_ref::<Option<Vec<u8>>>() {
+            match v {
+                Some(v) => Some(AnyMessage::Bitstring(v.clone())),
+                None => None,
+            }
+        } else if let Some(v) = boxed.as_ref().downcast_ref::<Vec<Vec<u8>>>() {
+            Some(AnyMessage::Bitstringstring(v.clone()))
+        } else if let Some(n) = boxed.as_ref().downcast_ref::<u64>() {
+            Some(AnyMessage::Constant64(n.clone()))
+        } else if let Some(ce) = boxed.as_ref().downcast_ref::<CertificateEntry>() {
+            Some(AnyMessage::CertificateEntry(ce.clone()))
+        } else if let Some(vce) = boxed.as_ref().downcast_ref::<Vec<CertificateEntry>>() {
+            Some(AnyMessage::VecCertificateEntry(vce.clone()))
+        } else if let Some(ce) = boxed.as_ref().downcast_ref::<ClientExtension>() {
+            Some(AnyMessage::ClientExtension(ce.clone()))
+        } else if let Some(vce) = boxed.as_ref().downcast_ref::<Vec<ClientExtension>>() {
+            Some(AnyMessage::VecClientExtension(vce.clone()))
+        } else if let Some(se) = boxed.as_ref().downcast_ref::<ServerExtension>() {
+            Some(AnyMessage::ServerExtension(se.clone()))
+        } else if let Some(vse) = boxed.as_ref().downcast_ref::<Vec<ServerExtension>>() {
+            Some(AnyMessage::VecServerExtension(vse.clone()))
+        } else if let Some(re) = boxed.as_ref().downcast_ref::<HelloRetryExtension>() {
+            Some(AnyMessage::HelloRetryExtension(re.clone()))
+        } else if let Some(vre) = boxed.as_ref().downcast_ref::<Vec<HelloRetryExtension>>() {
+            Some(AnyMessage::VecHelloRetryExtension(vre.clone()))
+        } else if let Some(cre) = boxed.as_ref().downcast_ref::<CertReqExtension>() {
+            Some(AnyMessage::CertReqExtension(cre.clone()))
+        } else if let Some(vcre) = boxed.as_ref().downcast_ref::<Vec<CertReqExtension>>() {
+            Some(AnyMessage::VecCertReqExtension(vcre.clone()))
+        } else if let Some(ce) = boxed.as_ref().downcast_ref::<CertificateExtension>() {
+            Some(AnyMessage::CertificateExtension(ce.clone()))
+        } else if let Some(vce) = boxed.as_ref().downcast_ref::<Vec<CertificateExtension>>() {
+            Some(AnyMessage::VecCertificateExtension(vce.clone()))
+        } else if let Some(nste) = boxed.as_ref().downcast_ref::<NewSessionTicketExtension>() {
+            Some(AnyMessage::NewSessionTicketExtension(nste.clone()))
+        } else if let Some(vnste) = boxed
+            .as_ref()
+            .downcast_ref::<Vec<NewSessionTicketExtension>>()
+        {
+            Some(AnyMessage::VecNewSessionTicketExtension(vnste.clone()))
+        } else if let Some(psk) = boxed.as_ref().downcast_ref::<PresharedKeyIdentity>() {
+            Some(AnyMessage::PresharedKey(psk.clone()))
+        } else if let Some(vpsk) = boxed.as_ref().downcast_ref::<Vec<PresharedKeyIdentity>>() {
+            Some(AnyMessage::VecPresharedKey(vpsk.clone()))
+        } else if let Some(cs) = boxed.as_ref().downcast_ref::<CipherSuite>() {
+            Some(AnyMessage::CipherSuite(cs.clone()))
+        } else if let Some(vcs) = boxed.as_ref().downcast_ref::<Vec<CipherSuite>>() {
+            Some(AnyMessage::VecCipherSuite(vcs.clone()))
+        } else if let Some(c) = boxed.as_ref().downcast_ref::<Certificate>() {
+            Some(AnyMessage::Certificate(c.clone()))
+        } else if let Some(vc) = boxed.as_ref().downcast_ref::<Vec<Certificate>>() {
+            Some(AnyMessage::VecCertificate(vc.clone()))
+        } else if let Some(c) = boxed.as_ref().downcast_ref::<Compression>() {
+            Some(AnyMessage::Compression(c.clone()))
+        } else if let Some(vc) = boxed.as_ref().downcast_ref::<Vec<Compression>>() {
+            Some(AnyMessage::VecCompression(vc.clone()))
+        } else if let Some(sc) = boxed.as_ref().downcast_ref::<SignatureScheme>() {
+            Some(AnyMessage::SignatureScheme(sc.clone()))
+        } else if let Some(ocsp) = boxed
+            .as_ref()
+            .downcast_ref::<OCSPCertificateStatusRequest>()
+        {
+            Some(AnyMessage::OCSPCertificateStatusRequest(ocsp.clone()))
+        } else if let Some(ng) = boxed.as_ref().downcast_ref::<NamedGroup>() {
+            Some(AnyMessage::NamedGroup(ng.clone()))
+        } else if let Some(pv) = boxed.as_ref().downcast_ref::<ProtocolVersion>() {
+            Some(AnyMessage::ProtocolVersion(pv.clone()))
+        } else if let Some(id) = boxed.as_ref().downcast_ref::<SessionID>() {
+            Some(AnyMessage::SessionID(id.clone()))
+        } else if let Some(r) = boxed.as_ref().downcast_ref::<Random>() {
+            Some(AnyMessage::Random(r.clone()))
+        } else {
+            None
+        }
+    }
 }
