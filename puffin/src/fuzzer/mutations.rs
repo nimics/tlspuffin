@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use libafl::prelude::*;
 use util::{Choosable, *};
 
@@ -12,11 +10,10 @@ use crate::{
     codec::Codec,
     fuzzer::harness::default_put_options,
     fuzzer::term_zoo::TermZoo,
-    protocol::{AnyProtocolMessage, ProtocolBehavior, ProtocolMessage},
-    trace::{self, Action, InputAction, Trace, TraceContext},
+    protocol::{AnyProtocolMessage, ProtocolBehavior},
+    trace::{Trace, TraceContext},
 };
 use libafl::mutators::Mutator;
-use log::error;
 
 // returns list of mutations
 pub fn trace_mutations<S, M: Matcher>(
@@ -36,6 +33,25 @@ pub fn trace_mutations<S, M: Matcher>(
        MakeMessage<S>,
        BitFlip<S>,
        ByteAdd<S>,
+       ByteDec<S>,
+       ByteFlip<S>,
+       ByteInc<S>,
+       ByteInteresting<S>,
+       ByteNeg<S>,
+       ByteRand<S>,
+       BytesCopy<S>,
+       BytesDelete<S>,
+       BytesExpand<S>,
+       BytesInsertCopy<S>,
+       BytesInsert<S>,
+       BytesRandInsert<S>,
+       BytesRandSet<S>,
+       BytesSet<S>,
+       DwordAdd<S>,
+       DwordInteresting<S>,
+       QwordAdd<S>,
+       WordAdd<S>,
+       WordInteresting<S>,
    )
 where
     S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
@@ -51,6 +67,25 @@ where
         MakeMessage::new(constraints),
         BitFlip::new(),
         ByteAdd::new(),
+        ByteDec::new(),
+        ByteFlip::new(),
+        ByteInc::new(),
+        ByteInteresting::new(),
+        ByteNeg::new(),
+        ByteRand::new(),
+        BytesCopy::new(),
+        BytesDelete::new(),
+        BytesExpand::new(),
+        BytesInsertCopy::new(),
+        BytesInsert::new(),
+        BytesRandInsert::new(),
+        BytesRandSet::new(),
+        BytesSet::new(),
+        DwordAdd::new(),
+        DwordInteresting::new(),
+        QwordAdd::new(),
+        WordAdd::new(),
+        WordInteresting::new(),
     )
 }
 /// SWAP: Swaps a sub-term with a different sub-term which is part of the trace
@@ -1640,128 +1675,6 @@ where
     }
 }
 
-/*
-/// CrossoverInsertMutator : Crossover insert mutation
-
-pub struct CrossoverInsert<S>
-where
-    S: HasRand,
-{
-    phantom_s: std::marker::PhantomData<S>,
-}
-
-impl<S> CrossoverInsert<S>
-where
-    S: HasRand,
-{
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            phantom_s: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S>
-    for CrossoverInsert<S>
-where
-    S: HasRand + HasCorpus + HasMaxSize,
-{
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace<M, PB>,
-        stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
-        let rand = state.rand_mut();
-        if let Some(to_mutate) = choose_term_filtered_mut(
-            trace,
-            |x| match x {
-                Term::Message(_) => true,
-                _ => false,
-            },
-            TermConstraints::default(),
-            rand,
-        ) {
-            match to_mutate {
-                Term::Message(msg) => CrossoverInsertMutator.mutate(state, msg, stage_idx), // stage ?
-                _ => panic!("this shouldn't happen !"),
-            }
-        } else {
-            Ok(MutationResult::Skipped)
-        }
-    }
-}
-impl<S> Named for CrossoverInsert<S>
-where
-    S: HasRand,
-{
-    fn name(&self) -> &str {
-        std::any::type_name::<CrossoverInsert<S>>()
-    }
-}
-
-///CrossoverReplaceMutator : Crossover replace mutation
-
-pub struct CrossoverReplace<S>
-where
-    S: HasRand,
-{
-    phantom_s: std::marker::PhantomData<S>,
-}
-
-impl<S> CrossoverReplace<S>
-where
-    S: HasRand,
-{
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            phantom_s: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S>
-    for CrossoverReplace<S>
-where
-    S: HasRand + HasCorpus,
-{
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace<M, PB>,
-        stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
-        let rand = state.rand_mut();
-        if let Some(to_mutate) = choose_term_filtered_mut(
-            trace,
-            |x| match x {
-                Term::Message(_) => true,
-                _ => false,
-            },
-            TermConstraints::default(),
-            rand,
-        ) {
-            match to_mutate {
-                Term::Message(msg) => CrossoverReplaceMutator.mutate(state, msg, stage_idx), // stage ?
-                _ => panic!("this shouldn't happen !"),
-            }
-        } else {
-            Ok(MutationResult::Skipped)
-        }
-    }
-}
-impl<S> Named for CrossoverReplace<S>
-where
-    S: HasRand,
-{
-    fn name(&self) -> &str {
-        std::any::type_name::<CrossoverReplace<S>>()
-    }
-}
-*/
-
 /// DwordAddMutator : Adds or subtracts a random value up to ARITH_MAX to a [<$size>]
 /// at a random place in the Vec, in random byte order.
 
@@ -2126,13 +2039,11 @@ where
 // *******************************************************************************************************
 
 pub mod util {
-    use std::ops::Not;
 
     use libafl::bolts::rands::Rand;
 
     use crate::{
-        algebra::{atoms::ByteMessage, Matcher, Term},
-        error::Error,
+        algebra::{Matcher, Term},
         protocol::ProtocolBehavior,
         trace::{Action, InputAction, Step, Trace},
     };
@@ -2370,57 +2281,6 @@ pub mod util {
         }
         reservoir
     }
-
-    /* fn sample<'a, M: Matcher, PB: ProtocolBehavior, R: Rand>(
-        term: Term<M, PB>,
-        path: TermPath,
-        mut reservoir: &Option<(&'a Term<M, PB>, TracePath)>,
-        totalweight: &mut u64,
-        step_index: usize,
-        rand: &mut R,
-    ) -> u64 {
-        match term {
-            Term::Application(_, subterms) => {
-                // weight : calculate the size of the sub tree
-                let mut weight = 1;
-                for (path_index, subterm) in subterms.iter().enumerate() {
-                    let mut next_path = path.clone();
-                    next_path.push(path_index);
-                    weight += sample::<'a, M, PB, R>(
-                        subterm.clone(),
-                        next_path,
-                        reservoir,
-                        totalweight,
-                        step_index,
-                        rand,
-                    );
-                }
-                // sampling
-                *totalweight += weight;
-                // will need to change this !! needs to be a function of weight
-                if reservoir.is_none() {
-                    reservoir = &mut Some((&term, (step_index, path)))
-                } else {
-                    // same here, needs to be a function of weight
-                    if rand.between(1, weight / *totalweight) == 1 {
-                        reservoir = &mut Some((&term, (step_index, path)))
-                    }
-                };
-                weight
-            }
-            _ => {
-                if reservoir.is_none() {
-                    reservoir = &mut Some((&term, (step_index, path)))
-                } else {
-                    // same here, needs to be a function of 1
-                    if rand.between(1, 1 / *totalweight) == 1 {
-                        reservoir = &mut Some((&term, (step_index, path)))
-                    };
-                };
-                1
-            }
-        }
-    } */
 
     fn find_term_by_term_path_mut<'a, M: Matcher>(
         term: &'a mut Term<M>,
