@@ -114,6 +114,7 @@ impl<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> MessageResult<M, O> {
     }
 }
 
-pub trait AnyProtocolMessage: Codec {
+pub trait AnyProtocolMessage: Codec + VariableData {
     fn downcast(boxed: Box<dyn Any>) -> Option<Self>;
+    fn unwrap(&self) -> Box<dyn Any>;
 }

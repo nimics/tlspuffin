@@ -528,7 +528,7 @@ pub mod test_signature {
     }
 
     impl Codec for TestAnyMessage {
-        fn encode(&self, bytes: &mut Vec<u8>) {
+        fn encode(&self, _bytes: &mut Vec<u8>) {
             panic!("not implemented for a test stub");
         }
 
@@ -538,7 +538,17 @@ pub mod test_signature {
     }
 
     impl AnyProtocolMessage for TestAnyMessage {
-        fn downcast(boxed: Box<dyn Any>) -> Option<Self> {
+        fn downcast(_boxed: Box<dyn Any>) -> Option<Self> {
+            panic!("not implemented for a test stub")
+        }
+
+        fn unwrap(&self) -> Box<dyn Any> {
+            panic!("not implemented for a test stub")
+        }
+    }
+
+    impl Clone for TestAnyMessage {
+        fn clone(&self) -> Self {
             panic!("not implemented for a test stub")
         }
     }

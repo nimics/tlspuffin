@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, fmt::Display};
+use std::{any::Any, convert::TryFrom, fmt::Display};
 
 use crate::{
     protocol::TLSProtocolBehavior,
@@ -19,6 +19,7 @@ use crate::{
 use puffin::{
     codec::{encode_vec_u8, encode_vec_vec_u8, Codec, Reader},
     protocol::AnyProtocolMessage,
+    variable_data::VariableData,
 };
 use serde::{Deserialize, Serialize};
 
@@ -337,7 +338,7 @@ pub enum MessageError {
     IllegalProtocolVersion,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AnyMessage {
     Message(Message),
     OpaqueMessage(OpaqueMessage),
@@ -515,6 +516,47 @@ impl AnyProtocolMessage for AnyMessage {
             Some(AnyMessage::Random(r.clone()))
         } else {
             None
+        }
+    }
+
+    fn unwrap(&self) -> Box<dyn Any> {
+        match self {
+            AnyMessage::Message(m) => m.boxed_any(),
+            AnyMessage::OpaqueMessage(m) => m.boxed_any(),
+
+            AnyMessage::Bitstring(m) => m.boxed_any(),
+            AnyMessage::Bitstringstring(m) => m.boxed_any(),
+            AnyMessage::Constant64(m) => m.boxed_any(),
+
+            AnyMessage::CertificateEntry(m) => m.boxed_any(),
+            AnyMessage::VecCertificateEntry(m) => m.boxed_any(),
+            AnyMessage::ClientExtension(m) => m.boxed_any(),
+            AnyMessage::VecClientExtension(m) => m.boxed_any(),
+            AnyMessage::ServerExtension(m) => m.boxed_any(),
+            AnyMessage::VecServerExtension(m) => m.boxed_any(),
+            AnyMessage::HelloRetryExtension(m) => m.boxed_any(),
+            AnyMessage::VecHelloRetryExtension(m) => m.boxed_any(),
+            AnyMessage::CertReqExtension(m) => m.boxed_any(),
+            AnyMessage::VecCertReqExtension(m) => m.boxed_any(),
+            AnyMessage::CertificateExtension(m) => m.boxed_any(),
+            AnyMessage::VecCertificateExtension(m) => m.boxed_any(),
+            AnyMessage::NewSessionTicketExtension(m) => m.boxed_any(),
+            AnyMessage::VecNewSessionTicketExtension(m) => m.boxed_any(),
+            AnyMessage::PresharedKey(m) => m.boxed_any(),
+            AnyMessage::VecPresharedKey(m) => m.boxed_any(),
+            AnyMessage::CipherSuite(m) => m.boxed_any(),
+            AnyMessage::VecCipherSuite(m) => m.boxed_any(),
+            AnyMessage::Certificate(m) => m.boxed_any(),
+            AnyMessage::VecCertificate(m) => m.boxed_any(),
+            AnyMessage::Compression(m) => m.boxed_any(),
+            AnyMessage::VecCompression(m) => m.boxed_any(),
+
+            AnyMessage::SignatureScheme(m) => m.boxed_any(),
+            AnyMessage::OCSPCertificateStatusRequest(m) => m.boxed_any(),
+            AnyMessage::NamedGroup(m) => m.boxed_any(),
+            AnyMessage::ProtocolVersion(m) => m.boxed_any(),
+            AnyMessage::SessionID(m) => m.boxed_any(),
+            AnyMessage::Random(m) => m.boxed_any(),
         }
     }
 }

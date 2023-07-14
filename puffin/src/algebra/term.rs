@@ -8,9 +8,10 @@ use serde::{Deserialize, Serialize};
 use super::atoms::{ByteMessage, Function, Variable};
 use crate::{
     algebra::{dynamic_function::TypeShape, error::FnError, Matcher},
+    codec::Codec,
     error::Error,
     fuzzer::mutations::util::{TermPath, TracePath},
-    protocol::ProtocolBehavior,
+    protocol::{AnyProtocolMessage, ProtocolBehavior},
     trace::TraceContext,
 };
 
@@ -159,7 +160,13 @@ impl<M: Matcher> Term<M> {
                 let result: Result<Box<dyn Any>, FnError> = dynamic_fn(&dynamic_args);
                 result.map_err(Error::Fn)
             }
-            Term::Message(msg) => Ok(Box::new(msg.payload.clone())),
+            Term::Message(msg) => {
+                let message =
+                    P::AnyProtocolMessage::downcast(msg.old_term.evaluate(context).unwrap())
+                        .unwrap();
+                message.encode(&mut msg.payload.clone());
+                Ok(message.unwrap())
+            }
         }
     }
 }
