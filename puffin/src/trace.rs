@@ -430,6 +430,29 @@ impl<M: Matcher, PB: ProtocolBehavior> Trace<M, PB> {
     pub fn deserialize_postcard(slice: &[u8]) -> Result<Trace<M, PB>, postcard::Error> {
         postcard::from_bytes::<Trace<M, PB>>(slice)
     }
+
+    pub fn gather_bitstring_vec(&self) -> Vec<u8> {
+        // initialize an empty vector
+        let mut bitstrings = Vec::new();
+        for step in &self.steps {
+            match &step.action {
+                Action::Input(input) => {
+                    // in depth search
+                    let mut q = vec![&input.recipe];
+                    while !q.is_empty() {
+                        let term = q.pop().unwrap();
+                        match &term {
+                            Term::Application(_, subterms) => q.extend(subterms.iter().clone()),
+                            Term::Variable(_) => {}
+                            Term::Message(m) => bitstrings.extend(m.payload.iter()),
+                        }
+                    }
+                }
+                Action::Output(_) => {}
+            }
+        }
+        bitstrings
+    }
 }
 
 impl<M: Matcher, PB: ProtocolBehavior> fmt::Debug for Trace<M, PB> {
@@ -447,12 +470,6 @@ impl<M: Matcher, PB: ProtocolBehavior> fmt::Display for Trace<M, PB> {
         Ok(())
     }
 }
-
-/*  impl<M, PB> HasBytesVec for Trace<M, PB> {
-    fn bytes(&self) -> &[u8] {}
-
-    fn bytes_mut(&mut self) -> &mut Vec<u8> {}
-} */
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 #[serde(bound = "M: Matcher")]

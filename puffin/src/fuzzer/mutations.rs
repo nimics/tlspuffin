@@ -11,7 +11,7 @@ use crate::{
     fuzzer::harness::default_put_options,
     fuzzer::term_zoo::TermZoo,
     protocol::{AnyProtocolMessage, ProtocolBehavior},
-    trace::{Trace, TraceContext},
+    trace::{Action, Trace, TraceContext},
 };
 use libafl::mutators::Mutator;
 
@@ -636,9 +636,9 @@ where
                                     any_message.get_encoding(),
                                 )),
                             );
-
                             Ok(MutationResult::Mutated)
                         }
+
                         None => Ok(MutationResult::Skipped),
                     }
                 } else {
@@ -1625,6 +1625,24 @@ where
     phantom_s: std::marker::PhantomData<S>,
 }
 
+pub struct Bitstring(Vec<u8>);
+
+impl Bitstring {
+    pub fn new(data: Vec<u8>) -> Bitstring {
+        Bitstring(data)
+    }
+}
+
+impl HasBytesVec for Bitstring {
+    fn bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    fn bytes_mut(&mut self) -> &mut Vec<u8> {
+        &mut self.0
+    }
+}
+
 impl<S> BytesSwap<S>
 where
     S: HasRand,
@@ -1647,25 +1665,46 @@ where
         trace: &mut Trace<M, PB>,
         stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-        let rand = state.rand_mut();
-        if let Some(to_mutate) = choose_term_filtered_mut(
-            trace,
-            |x| match x {
-                Term::Message(_) => true,
-                _ => false,
-            },
-            TermConstraints::default(),
-            rand,
-        ) {
-            match to_mutate {
-                Term::Message(msg) => BytesSwapMutator::default().mutate(state, msg, stage_idx), // stage ?
-                _ => panic!("this shouldn't happen !"),
+        // make a vector with all the payloads of messages
+        let mut bitstring = Bitstring::new(trace.gather_bitstring_vec());
+        match BytesSwapMutator::default().mutate(state, &mut bitstring, stage_idx) {
+            Ok(MutationResult::Mutated) => {
+                for step_index in 0..trace.steps.len() {
+                    match &mut trace.steps[step_index].action {
+                        Action::Input(input) => replace_payloads(&mut input.recipe, &mut bitstring),
+                        Action::Output(_) => {}
+                    }
+                }
+                Ok(MutationResult::Mutated)
             }
-        } else {
-            Ok(MutationResult::Skipped)
+            Ok(MutationResult::Skipped) => Ok(MutationResult::Skipped),
+            Err(error) => Err(error), // shouldn't happen
         }
     }
 }
+
+pub fn replace_payloads<M: Matcher>(term: &mut Term<M>, bitstring: &mut Bitstring) {
+    let mut q = vec![term];
+    while !q.is_empty() {
+        let term = q.pop().unwrap();
+        match term {
+            Term::Application(_, subterms) => {
+                for subterm in subterms {
+                    q.push(subterm)
+                }
+            }
+            Term::Message(m) => {
+                let mut new_payload = Vec::new();
+                for _ in 0..new_payload.len() {
+                    new_payload.push(bitstring.0.pop().unwrap())
+                }
+                m.payload = new_payload;
+            }
+            _ => {}
+        }
+    }
+}
+
 impl<S> Named for BytesSwap<S>
 where
     S: HasRand,
