@@ -452,6 +452,10 @@ impl AnyProtocolMessage for AnyMessage {
             Some(AnyMessage::Bitstringstring(v.clone()))
         } else if let Some(n) = boxed.as_ref().downcast_ref::<u64>() {
             Some(AnyMessage::Constant64(n.clone()))
+        } else if let Some(c) = boxed.as_ref().downcast_ref::<Certificate>() {
+            Some(AnyMessage::Certificate(c.clone()))
+        } else if let Some(vc) = boxed.as_ref().downcast_ref::<Vec<Certificate>>() {
+            Some(AnyMessage::VecCertificate(vc.clone()))
         } else if let Some(ce) = boxed.as_ref().downcast_ref::<CertificateEntry>() {
             Some(AnyMessage::CertificateEntry(ce.clone()))
         } else if let Some(vce) = boxed.as_ref().downcast_ref::<Vec<CertificateEntry>>() {
@@ -491,10 +495,6 @@ impl AnyProtocolMessage for AnyMessage {
             Some(AnyMessage::CipherSuite(cs.clone()))
         } else if let Some(vcs) = boxed.as_ref().downcast_ref::<Vec<CipherSuite>>() {
             Some(AnyMessage::VecCipherSuite(vcs.clone()))
-        } else if let Some(c) = boxed.as_ref().downcast_ref::<Certificate>() {
-            Some(AnyMessage::Certificate(c.clone()))
-        } else if let Some(vc) = boxed.as_ref().downcast_ref::<Vec<Certificate>>() {
-            Some(AnyMessage::VecCertificate(vc.clone()))
         } else if let Some(c) = boxed.as_ref().downcast_ref::<Compression>() {
             Some(AnyMessage::Compression(c.clone()))
         } else if let Some(vc) = boxed.as_ref().downcast_ref::<Vec<Compression>>() {
