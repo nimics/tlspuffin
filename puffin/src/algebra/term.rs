@@ -160,13 +160,14 @@ impl<M: Matcher> Term<M> {
                 let result: Result<Box<dyn Any>, FnError> = dynamic_fn(&dynamic_args);
                 result.map_err(Error::Fn)
             }
-            Term::Message(msg) => {
-                let message =
-                    P::AnyProtocolMessage::downcast(msg.old_term.evaluate(context).unwrap())
-                        .unwrap();
-                message.encode(&mut msg.payload.clone());
-                Ok(message.unwrap())
-            }
+            Term::Message(msg) => match msg.old_term.evaluate(context) {
+                Ok(eval) => {
+                    let message = P::AnyProtocolMessage::downcast(eval).unwrap();
+                    message.encode(&mut msg.payload.clone());
+                    Ok(message.unwrap())
+                }
+                Err(error) => Err(error),
+            },
         }
     }
 }
