@@ -235,6 +235,7 @@ pub fn fn_fill_binder(full_client_hello: &Message, binder: &Vec<u8>) -> Result<M
                         typ: HandshakeType::ClientHello,
                         payload: HandshakePayload::ClientHello(new_payload),
                     }),
+                    has_bytes: None, // TO BE CHECKED
                 })
             }
             _ => None,

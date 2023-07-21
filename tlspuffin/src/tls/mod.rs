@@ -108,6 +108,7 @@ define_signature!(
     fn_server_hello_done
     fn_server_key_exchange
     // extensions
+    // don't do new and append and
     fn_client_extensions_new
     fn_client_extensions_append
     fn_server_extensions_new

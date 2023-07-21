@@ -35,6 +35,7 @@ pub fn fn_empty_handshake_message() -> Result<OpaqueMessage, FnError> {
         typ: ContentType::Handshake,
         version: ProtocolVersion::TLSv1_2,
         payload: Payload::empty(),
+        has_bytes: None,
     })
 }
 
@@ -50,6 +51,7 @@ pub fn fn_alert_close_notify() -> Result<Message, FnError> {
             level: AlertLevel::Warning,
             description: AlertDescription::CloseNotify,
         }),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 
@@ -61,6 +63,7 @@ pub fn fn_change_cipher_spec() -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::ChangeCipherSpec(ChangeCipherSpecPayload {}),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 // ----
@@ -71,6 +74,7 @@ pub fn fn_application_data(data: &Vec<u8>) -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::ApplicationData(Payload::new(data.clone())),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 
@@ -119,6 +123,7 @@ pub fn fn_heartbeat_fake_length(payload: &Vec<u8>, fake_length: &u64) -> Result<
             payload: PayloadU16::new(payload.clone()),
             fake_length: Some(*fake_length as u16),
         }),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 
@@ -138,6 +143,7 @@ pub fn fn_hello_request() -> Result<Message, FnError> {
             typ: HandshakeType::HelloRequest,
             payload: HandshakePayload::HelloRequest,
         }),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 /// ClientHello => 0x01,
@@ -162,6 +168,7 @@ pub fn fn_client_hello(
                 extensions: extensions.clone(),
             }),
         }),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 /// ServerHello => 0x02,
@@ -186,6 +193,7 @@ pub fn fn_server_hello(
                 extensions: extensions.clone(),
             }),
         }),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 /// hello_verify_request_RESERVED => 0x03,
@@ -203,6 +211,7 @@ pub fn fn_new_session_ticket(lifetime_hint: &u64, ticket: &Vec<u8>) -> Result<Me
                 ticket: PayloadU16::new(ticket.clone()),
             }),
         }),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 pub fn fn_new_session_ticket13(
@@ -224,6 +233,7 @@ pub fn fn_new_session_ticket13(
                 exts: NewSessionTicketExtensions(extensions.clone()),
             }),
         }),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 /// EndOfEarlyData => 0x05,
@@ -246,6 +256,7 @@ pub fn fn_hello_retry_request(
                 extensions: extensions.clone(),
             }),
         }),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 /// EncryptedExtensions => 0x08,
@@ -260,6 +271,7 @@ pub fn fn_encrypted_extensions(
                 server_extensions.clone(),
             )),
         }),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 /// RequestConnectionId => 0x09,
@@ -274,6 +286,7 @@ pub fn fn_certificate(certs: &Vec<key::Certificate>) -> Result<Message, FnError>
             typ: HandshakeType::Certificate,
             payload: HandshakePayload::Certificate(CertificatePayload(certs.clone())),
         }),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 pub fn fn_certificate13(
@@ -292,6 +305,7 @@ pub fn fn_certificate13(
                 entries: entries.clone(),
             }),
         }),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 /// ServerKeyExchange => 0x0c,
@@ -304,6 +318,7 @@ pub fn fn_server_key_exchange(data: &Vec<u8>) -> Result<Message, FnError> {
                 Payload::new(data.clone()),
             )),
         }),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 /// CertificateRequest => 0x0d,
@@ -322,6 +337,7 @@ pub fn fn_certificate_request() -> Result<Message, FnError> {
                 )]),
             }),
         }),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 pub fn fn_certificate_request13(
@@ -340,6 +356,7 @@ pub fn fn_certificate_request13(
                 extensions: CertReqExtensions(extensions.clone()),
             }),
         }),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 /// ServerHelloDone => 0x0e,
@@ -350,6 +367,7 @@ pub fn fn_server_hello_done() -> Result<Message, FnError> {
             typ: HandshakeType::ServerHelloDone,
             payload: HandshakePayload::ServerHelloDone,
         }),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 /// CertificateVerify => 0x0f,
@@ -368,6 +386,7 @@ pub fn fn_certificate_verify(
                 sig: PayloadU16::new(signature.clone()),
             }),
         }),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 /// ClientKeyExchange => 0x10,
@@ -378,6 +397,7 @@ pub fn fn_client_key_exchange(encoded_pubkey_data: &Vec<u8>) -> Result<Message, 
             typ: HandshakeType::ClientKeyExchange,
             payload: HandshakePayload::ClientKeyExchange(Payload::new(encoded_pubkey_data.clone())),
         }),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 /// Finished => 0x14,
@@ -388,6 +408,7 @@ pub fn fn_finished(verify_data: &Vec<u8>) -> Result<Message, FnError> {
             typ: HandshakeType::Finished,
             payload: HandshakePayload::Finished(Payload::new(verify_data.clone())),
         }),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 /// CertificateURL => 0x15,
@@ -402,6 +423,7 @@ pub fn fn_certificate_status(ocsp_response: &Vec<u8>) -> Result<Message, FnError
                 ocsp_response: PayloadU24::new(ocsp_response.clone()),
             }),
         }),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 /// KeyUpdate => 0x18,
@@ -412,6 +434,7 @@ pub fn fn_key_update() -> Result<Message, FnError> {
             typ: HandshakeType::KeyUpdate,
             payload: HandshakePayload::KeyUpdate(KeyUpdateRequest::UpdateRequested),
         }),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 pub fn fn_key_update_not_requested() -> Result<Message, FnError> {
@@ -421,6 +444,7 @@ pub fn fn_key_update_not_requested() -> Result<Message, FnError> {
             typ: HandshakeType::KeyUpdate,
             payload: HandshakePayload::KeyUpdate(KeyUpdateRequest::UpdateNotRequested),
         }),
+        has_bytes: None, // TO BE CHECKED
     })
 }
 /// compressed_certificate => 0x019,
@@ -437,5 +461,6 @@ pub fn fn_message_hash(hash: &Vec<u8>) -> Result<Message, FnError> {
             typ: HandshakeType::MessageHash,
             payload: HandshakePayload::MessageHash(Payload::new(hash.clone())),
         }),
+        has_bytes: None, // TO BE CHECKED
     })
 }

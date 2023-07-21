@@ -161,11 +161,10 @@ impl<M: Matcher> Term<M> {
                 result.map_err(Error::Fn)
             }
             Term::Message(msg) => match msg.old_term.evaluate(context) {
-                Ok(eval) => {
-                    let message = P::AnyProtocolMessage::downcast(eval).unwrap();
-                    message.encode(&mut msg.payload.clone());
-                    Ok(message.unwrap())
-                }
+                Ok(eval) => Ok(P::AnyProtocolMessage::downcast(eval)
+                    .unwrap()
+                    .give_payload(msg.payload.clone())
+                    .upcast()),
                 Err(error) => Err(error),
             },
         }

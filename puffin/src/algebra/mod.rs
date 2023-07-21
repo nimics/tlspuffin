@@ -542,7 +542,11 @@ pub mod test_signature {
             panic!("not implemented for a test stub")
         }
 
-        fn unwrap(&self) -> Box<dyn Any> {
+        fn upcast(&self) -> Box<dyn Any> {
+            panic!("not implemented for a test stub")
+        }
+
+        fn give_payload(&self, bytes: Vec<u8>) -> Self {
             panic!("not implemented for a test stub")
         }
     }
@@ -721,6 +725,7 @@ mod tests {
         });
 
         let _string = generated_term
+            .clone()
             .evaluate(&context)
             .as_ref()
             .unwrap()

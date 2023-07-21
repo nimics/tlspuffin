@@ -623,7 +623,7 @@ impl<M: Matcher> InputAction<M> {
         PB: ProtocolBehavior<Matcher = M>,
     {
         // message controlled by the attacker
-        let evaluated = self.recipe.evaluate(ctx)?; // reads term
+        let evaluated = self.clone().recipe.evaluate(ctx)?; // reads term
 
         if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
             msg.debug("Input message");

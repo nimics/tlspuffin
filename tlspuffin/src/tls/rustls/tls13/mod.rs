@@ -176,6 +176,7 @@ impl MessageEncrypter for Tls13MessageEncrypter {
             typ: ContentType::ApplicationData,
             version: ProtocolVersion::TLSv1_2,
             payload: Payload::new(payload),
+            has_bytes: None,
         })
     }
 }

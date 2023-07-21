@@ -2355,6 +2355,7 @@ pub mod tests {
                 typ: ContentType::Handshake,
                 version: ProtocolVersion::TLSv1_2,
                 payload: Payload::new(vec![1, 2, 3]),
+                has_bytes: None,
             };
 
             create_message(opaque_message);
@@ -2376,6 +2377,7 @@ pub mod tests {
                         extensions: vec![],
                     }),
                 }),
+                has_bytes: None,
             };
 
             let mut out: Vec<u8> = Vec::new();

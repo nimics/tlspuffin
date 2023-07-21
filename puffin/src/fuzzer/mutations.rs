@@ -595,7 +595,6 @@ where
     }
 }
 
-// Matcher = M weird ??
 impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M, PB>, S> for MakeMessage<S>
 where
     S: HasRand,
@@ -607,9 +606,12 @@ where
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
-        //choose random sub tree (bias for nodes with smaller height)
+        //choose a random sub tree
         if let Some((to_mutate, (step_index, term_path))) =
-            choose_with_weights(&trace.clone(), self.constraints, rand)
+            choose(&trace.clone(), self.constraints, rand)
+        /* choose random sub tree (bias for nodes with smaller height)
+        if let Some((to_mutate, (step_index, term_path))) =
+            choose_with_weights(&trace.clone(), self.constraints, rand) */
         {
             // shorten runtime of the PUT by cutting useless steps (new trace = trace[0..step_index])
             let mut new_trace = trace.clone();
@@ -704,7 +706,7 @@ where
             rand,
         ) {
             match to_mutate {
-                Term::Message(msg) => BitFlipMutator.mutate(state, msg, stage_idx), // stage ?
+                Term::Message(msg) => BitFlipMutator.mutate(state, msg, stage_idx),
                 _ => panic!("this shouldn't happen !"),
             }
         } else {
@@ -2425,6 +2427,22 @@ pub mod util {
         rand: &mut R,
     ) -> Option<(&'a Term<M>, (usize, TermPath))> {
         reservoir_sample(trace, |_| true, constraints, rand)
+    }
+
+    pub fn choose_mut<'a, R: Rand, M: Matcher, PB: ProtocolBehavior>(
+        trace: &'a mut Trace<M, PB>,
+        constraints: TermConstraints,
+        rand: &mut R,
+    ) -> Option<(&'a mut Term<M>, (usize, TermPath))> {
+        if let Some(trace_path) = choose_term_path_filtered(trace, |_| true, constraints, rand) {
+            if let Some(term) = find_term_mut(trace, &trace_path) {
+                Some((term, trace_path))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 
     pub fn choose_term<'a, R: Rand, M: Matcher, PB: ProtocolBehavior>(

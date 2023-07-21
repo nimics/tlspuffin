@@ -164,6 +164,7 @@ impl MessageEncrypter for GcmMessageEncrypter {
             typ: msg.typ,
             version: msg.version,
             payload: Payload::new(payload),
+            has_bytes: None,
         })
     }
 }
@@ -234,6 +235,7 @@ impl MessageEncrypter for ChaCha20Poly1305MessageEncrypter {
             typ: msg.typ,
             version: msg.version,
             payload: Payload::new(buf),
+            has_bytes: None,
         })
     }
 }

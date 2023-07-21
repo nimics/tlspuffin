@@ -129,6 +129,7 @@ impl HandshakeJoiner {
             let m = Message {
                 version,
                 payload: MessagePayload::Handshake(payload),
+                has_bytes: None, // seems to only be used in tests ???
             };
 
             self.frames.push_back(m);
@@ -206,6 +207,7 @@ mod tests {
                 typ: HandshakeType::HelloRequest,
                 payload: HandshakePayload::HelloRequest,
             }),
+            has_bytes: None,
         }
         .into();
 
@@ -275,6 +277,7 @@ mod tests {
                 typ: HandshakeType::Finished,
                 payload: HandshakePayload::Finished(Payload::new(payload)),
             }),
+            has_bytes: None,
         }
         .into();
 
