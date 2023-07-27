@@ -115,7 +115,11 @@ impl Display for OpaqueMessage {
 
 impl Codec for OpaqueMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        bytes.extend_from_slice(&OpaqueMessage::encode(self.clone()));
+        if self.has_bytes.is_some() {
+            bytes.extend_from_slice(&self.has_bytes.clone().unwrap())
+        } else {
+            bytes.extend_from_slice(&OpaqueMessage::encode(self.clone()));
+        }
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
