@@ -579,6 +579,7 @@ impl AnyProtocolMessage for AnyMessage {
     fn get_havoc_encoding(&self) -> Vec<Vec<u8>> {
         match self {
             AnyMessage::OpaqueMessage(m) => vec![m.payload.clone().0],
+            AnyMessage::Bitstring(m) => vec![m.clone()],
             _ => panic!("isn't implemented yet !"),
         }
     }
