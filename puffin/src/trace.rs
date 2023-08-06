@@ -431,7 +431,7 @@ impl<M: Matcher, PB: ProtocolBehavior> Trace<M, PB> {
         postcard::from_bytes::<Trace<M, PB>>(slice)
     }
 
-    pub fn gather_bitstring_vec(&self) -> Vec<u8> {
+    /* pub fn gather_bitstring_vec(&self) -> Vec<u8> {
         // initialize an empty vector
         let mut bitstrings = Vec::new();
         for step in &self.steps {
@@ -452,7 +452,7 @@ impl<M: Matcher, PB: ProtocolBehavior> Trace<M, PB> {
             }
         }
         bitstrings
-    }
+    } */
 }
 
 impl<M: Matcher, PB: ProtocolBehavior> fmt::Debug for Trace<M, PB> {

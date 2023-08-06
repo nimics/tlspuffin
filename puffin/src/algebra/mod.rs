@@ -546,7 +546,11 @@ pub mod test_signature {
             panic!("not implemented for a test stub")
         }
 
-        fn give_payload(&self, bytes: Vec<u8>) -> Self {
+        fn give_payload(&self, _bytes: Vec<Vec<u8>>) -> Self {
+            panic!("not implemented for a test stub")
+        }
+
+        fn get_havoc_encoding(&self) -> Vec<Vec<u8>> {
             panic!("not implemented for a test stub")
         }
     }

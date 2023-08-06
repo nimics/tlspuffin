@@ -635,21 +635,28 @@ where
                                 term_path,
                                 Term::Message(ByteMessage::new(
                                     Box::new(to_mutate.clone()),
-                                    any_message.get_encoding(),
+                                    any_message.get_havoc_encoding(),
                                 )),
                             );
                             Ok(MutationResult::Mutated)
                         }
-
                         None => Ok(MutationResult::Skipped),
                     }
                 } else {
+                    // println!("failed to evaluate");
                     Ok(MutationResult::Skipped)
                 }
             } else {
-                Ok(MutationResult::Skipped)
+                match result {
+                    Ok(_) => panic!(),
+                    Err(error) => {
+                        // println!("failed to execute trace : {}", error);
+                        Ok(MutationResult::Skipped)
+                    }
+                }
             }
         } else {
+            // println!("failed to choose term");
             Ok(MutationResult::Skipped)
         }
     }
@@ -1618,6 +1625,7 @@ where
     }
 }
 
+/*
 /// BytesSwapMutator : Bytes swap mutation for inputs with a bytes vector
 
 pub struct BytesSwap<S>
@@ -1715,6 +1723,7 @@ where
         std::any::type_name::<BytesSwap<S>>()
     }
 }
+*/
 
 /// DwordAddMutator : Adds or subtracts a random value up to ARITH_MAX to a [<$size>]
 /// at a random place in the Vec, in random byte order.

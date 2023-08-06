@@ -117,5 +117,6 @@ impl<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> MessageResult<M, O> {
 pub trait AnyProtocolMessage: Codec + VariableData {
     fn downcast(boxed: Box<dyn Any>) -> Option<Self>;
     fn upcast(&self) -> Box<dyn Any>;
-    fn give_payload(&self, bytes: Vec<u8>) -> Self;
+    fn give_payload(&self, bytes: Vec<Vec<u8>>) -> Self;
+    fn get_havoc_encoding(&self) -> Vec<Vec<u8>>;
 }

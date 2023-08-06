@@ -292,3 +292,25 @@ mod tests {
         assert_eq!(remove_prefix("test::test::Test<asdf::Asdf>"), "Test<Asdf>");
     }
 }
+
+/*
+Message in tlspuffin :
+new field
+has_bytes: Option<Vec<u8>>
+
+Codec::encode(message) :
+if message.has_bytes.is_some then
+    encode bytes
+else encode(message) as per usual
+
+Trait AnyProtocolMessage :
+fn upcast(self) -> Box dyn Any
+fn downcast(Box dyn Any) -> self
+fn give_payload(self, payload) -> self (returns the AnyMessage with has_bytes field = Some(payload))
+
+Term::evaluate(Message) :
+message.old_term.evaluate (evaluate old term)
+.downcast (downcast Box dyn Any into a AnyMessage in TLS)
+.give_payload(message.payload) (over in tlspuffin : inserts the message payload in message.has_bytes)
+.upcast (upcasts into a box dyn Any)
+*/

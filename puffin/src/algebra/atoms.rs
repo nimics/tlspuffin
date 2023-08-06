@@ -352,22 +352,22 @@ pub struct ByteMessage<M: Matcher> {
     /// change this ID.
     pub old_term: Box<Term<M>>,
     /// the message, it needs to be a message for evaluated function
-    pub payload: Vec<u8>,
+    pub payload: Vec<Vec<u8>>,
 }
 
 impl<M: Matcher> ByteMessage<M> {
-    pub fn new(old_term: Box<Term<M>>, payload: Vec<u8>) -> ByteMessage<M> {
+    pub fn new(old_term: Box<Term<M>>, payload: Vec<Vec<u8>>) -> ByteMessage<M> {
         ByteMessage { old_term, payload }
     }
 }
 
 impl<M: Matcher> HasBytesVec for ByteMessage<M> {
     fn bytes(&self) -> &[u8] {
-        &self.payload[..]
+        &self.payload[0]
     }
 
     fn bytes_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.payload
+        &mut self.payload[0]
     }
 }
 

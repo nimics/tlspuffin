@@ -284,14 +284,16 @@ fn test_makemessage() {
     set_default_put_options(PutOptions::new(options)).expect("failed to set default PUT options");
     let mut mutator = MakeMessage::new(TermConstraints::default());
 
-    let mut a = false;
     let (mut trace, _) = _seed_client_attacker12(AgentName::first());
 
-    while !a {
-        match mutator.mutate(&mut state, &mut trace, 0) {
-            Ok(MutationResult::Mutated) => a = true,
-            Ok(MutationResult::Skipped) => {}
-            Err(error) => panic!("failed make message because of {}", error),
+    for _ in 0..10 {
+        let mut a = false;
+        while !a {
+            match mutator.mutate(&mut state, &mut trace, 0) {
+                Ok(MutationResult::Mutated) => a = true,
+                Ok(MutationResult::Skipped) => {}
+                Err(error) => panic!("failed make message because of {}", error),
+            }
         }
     }
 
@@ -339,6 +341,8 @@ fn test_makemessage() {
         panic!("No message created")
     }
 
+    let old_trace = trace.clone();
+
     let mut mutator = BitFlip::new();
 
     match mutator.mutate(&mut state, &mut trace, 1) {
@@ -348,5 +352,24 @@ fn test_makemessage() {
             }
         }
         Err(error) => panic!("Failed BitFlip mutation : {}", error),
+    }
+
+    let mut a = false;
+    for step_index in 0..trace.steps.len() {
+        match trace.steps[step_index].action.clone() {
+            Action::Input(input) => match old_trace.steps[step_index].action.clone() {
+                Action::Input(old_input) => {
+                    if input.recipe != old_input.recipe {
+                        a = true
+                    }
+                }
+                Action::Output(_) => panic!("what"),
+            },
+            Action::Output(_) => {}
+        }
+    }
+
+    if a == false {
+        panic!("didnt mutate !")
     }
 }

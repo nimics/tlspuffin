@@ -16,6 +16,7 @@ use crate::{
         },
     },
 };
+use libafl::prelude::HasBytesVec;
 use puffin::{
     codec::{encode_vec_u8, encode_vec_vec_u8, Codec, Reader},
     protocol::AnyProtocolMessage,
@@ -104,7 +105,6 @@ pub struct OpaqueMessage {
     pub typ: ContentType,
     pub version: ProtocolVersion,
     pub payload: Payload,
-    pub has_bytes: Option<Vec<u8>>,
 }
 
 impl Display for OpaqueMessage {
@@ -115,11 +115,7 @@ impl Display for OpaqueMessage {
 
 impl Codec for OpaqueMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        if self.has_bytes.is_some() {
-            bytes.extend_from_slice(&self.has_bytes.clone().unwrap())
-        } else {
-            bytes.extend_from_slice(&OpaqueMessage::encode(self.clone()));
-        }
+        bytes.extend_from_slice(&OpaqueMessage::encode(self.clone()));
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
@@ -167,7 +163,6 @@ impl OpaqueMessage {
             typ,
             version,
             payload,
-            has_bytes: None, // TO CHECK
         })
     }
 
@@ -241,7 +236,6 @@ impl PlainMessage {
             version: self.version,
             typ: self.typ,
             payload: self.payload,
-            has_bytes: None,
         }
     }
 
@@ -259,16 +253,11 @@ impl PlainMessage {
 pub struct Message {
     pub version: ProtocolVersion,
     pub payload: MessagePayload,
-    pub has_bytes: Option<Vec<u8>>,
 }
 
 impl Codec for Message {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        if self.has_bytes.is_some() {
-            bytes.extend_from_slice(&self.has_bytes.clone().unwrap())
-        } else {
-            self.payload.encode(bytes);
-        }
+        self.payload.encode(bytes);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
@@ -293,7 +282,6 @@ impl Message {
                 level,
                 description: desc,
             }),
-            has_bytes: None,
         }
     }
 
@@ -301,7 +289,6 @@ impl Message {
         Self {
             version: ProtocolVersion::TLSv1_3,
             payload: MessagePayload::Handshake(HandshakeMessagePayload::build_key_update_notify()),
-            has_bytes: None,
         }
     }
 }
@@ -317,7 +304,6 @@ impl TryFrom<PlainMessage> for Message {
         Ok(Self {
             version: plain.version,
             payload: MessagePayload::new(plain.typ, plain.version, plain.payload)?,
-            has_bytes: None,
         })
     }
 }
@@ -452,14 +438,15 @@ impl Codec for AnyMessage {
 
 impl AnyProtocolMessage for AnyMessage {
     fn downcast(boxed: Box<dyn std::any::Any>) -> Option<Self> {
-        if let Some(message) = boxed.as_ref().downcast_ref::<Message>() {
+        /* if let Some(message) = boxed.as_ref().downcast_ref::<Message>() {
             Some(AnyMessage::Message(message.clone()))
-        } else if let Some(opaque_message) = boxed.as_ref().downcast_ref::<OpaqueMessage>() {
+        } else */
+        if let Some(opaque_message) = boxed.as_ref().downcast_ref::<OpaqueMessage>() {
             Some(AnyMessage::OpaqueMessage(opaque_message.clone()))
-        }
-        /* else if let Some(v) = boxed.as_ref().downcast_ref::<Vec<u8>>() {
+        } else if let Some(v) = boxed.as_ref().downcast_ref::<Vec<u8>>() {
             Some(AnyMessage::Bitstring(v.clone()))
-        } else if let Some(v) = boxed.as_ref().downcast_ref::<Option<Vec<u8>>>() {
+        }
+        /* else if let Some(v) = boxed.as_ref().downcast_ref::<Option<Vec<u8>>>() {
             match v {
                 Some(v) => Some(AnyMessage::Bitstring(v.clone())),
                 None => None,
@@ -577,19 +564,21 @@ impl AnyProtocolMessage for AnyMessage {
         }
     }
 
-    fn give_payload(&self, bytes: Vec<u8>) -> Self {
+    fn give_payload(&self, bytes: Vec<Vec<u8>>) -> Self {
         match self {
-            AnyMessage::Message(m) => AnyMessage::Message(Message {
-                version: m.version,
-                payload: m.payload.clone(),
-                has_bytes: Some(bytes),
-            }),
             AnyMessage::OpaqueMessage(m) => AnyMessage::OpaqueMessage(OpaqueMessage {
                 typ: m.typ,
                 version: m.version,
-                payload: m.payload.clone(),
-                has_bytes: Some(bytes),
+                payload: Payload(bytes[0].clone()),
             }),
+            AnyMessage::Bitstring(m) => AnyMessage::Bitstring(bytes[0].clone()),
+            _ => panic!("isn't implemented yet !"),
+        }
+    }
+
+    fn get_havoc_encoding(&self) -> Vec<Vec<u8>> {
+        match self {
+            AnyMessage::OpaqueMessage(m) => vec![m.payload.clone().0],
             _ => panic!("isn't implemented yet !"),
         }
     }
