@@ -445,21 +445,23 @@ impl AnyProtocolMessage for AnyMessage {
             Some(AnyMessage::OpaqueMessage(opaque_message.clone()))
         } else if let Some(v) = boxed.as_ref().downcast_ref::<Vec<u8>>() {
             Some(AnyMessage::Bitstring(v.clone()))
-        }
-        /* else if let Some(v) = boxed.as_ref().downcast_ref::<Option<Vec<u8>>>() {
+        } else if let Some(v) = boxed.as_ref().downcast_ref::<Option<Vec<u8>>>() {
             match v {
                 Some(v) => Some(AnyMessage::Bitstring(v.clone())),
                 None => None,
             }
         } else if let Some(v) = boxed.as_ref().downcast_ref::<Vec<Vec<u8>>>() {
             Some(AnyMessage::Bitstringstring(v.clone()))
-        } else if let Some(n) = boxed.as_ref().downcast_ref::<u64>() {
+        }
+        /* else if let Some(n) = boxed.as_ref().downcast_ref::<u64>() {
             Some(AnyMessage::Constant64(n.clone()))
-        } else if let Some(c) = boxed.as_ref().downcast_ref::<Certificate>() {
+        } */
+        else if let Some(c) = boxed.as_ref().downcast_ref::<Certificate>() {
             Some(AnyMessage::Certificate(c.clone()))
         } else if let Some(vc) = boxed.as_ref().downcast_ref::<Vec<Certificate>>() {
             Some(AnyMessage::VecCertificate(vc.clone()))
-        } else if let Some(ce) = boxed.as_ref().downcast_ref::<CertificateEntry>() {
+        }
+        /* else if let Some(ce) = boxed.as_ref().downcast_ref::<CertificateEntry>() {
             Some(AnyMessage::CertificateEntry(ce.clone()))
         } else if let Some(vce) = boxed.as_ref().downcast_ref::<Vec<CertificateEntry>>() {
             Some(AnyMessage::VecCertificateEntry(vce.clone()))
@@ -572,6 +574,15 @@ impl AnyProtocolMessage for AnyMessage {
                 payload: Payload(bytes[0].clone()),
             }),
             AnyMessage::Bitstring(m) => AnyMessage::Bitstring(bytes[0].clone()),
+            AnyMessage::Bitstringstring(m) => AnyMessage::Bitstringstring(bytes.clone()),
+            AnyMessage::Certificate(m) => AnyMessage::Certificate(Certificate(bytes[0].clone())),
+            AnyMessage::VecCertificate(m) => {
+                let mut v = Vec::new();
+                for byte in bytes {
+                    v.push(Certificate(byte))
+                }
+                AnyMessage::VecCertificate(v)
+            }
             _ => panic!("isn't implemented yet !"),
         }
     }
@@ -580,6 +591,16 @@ impl AnyProtocolMessage for AnyMessage {
         match self {
             AnyMessage::OpaqueMessage(m) => vec![m.payload.clone().0],
             AnyMessage::Bitstring(m) => vec![m.clone()],
+            AnyMessage::Bitstringstring(m) => m.clone(),
+            AnyMessage::Certificate(m) => vec![m.0.clone()],
+            AnyMessage::VecCertificate(m) => {
+                let mut v = Vec::new();
+                for byte in m {
+                    v.push(byte.0.clone())
+                }
+                v
+            }
+
             _ => panic!("isn't implemented yet !"),
         }
     }

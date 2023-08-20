@@ -713,7 +713,17 @@ where
             rand,
         ) {
             match to_mutate {
-                Term::Message(msg) => BitFlipMutator.mutate(state, msg, stage_idx),
+                Term::Message(msg) => {
+                    if msg.payload.len() == 0 {
+                        Ok(MutationResult::Skipped)
+                    } else {
+                        msg.index = rand
+                            .below(msg.payload.len().try_into().unwrap())
+                            .try_into()
+                            .unwrap();
+                        BitFlipMutator.mutate(state, msg, stage_idx)
+                    }
+                }
                 _ => panic!("this shouldn't happen !"),
             }
         } else {
@@ -774,7 +784,17 @@ where
             rand,
         ) {
             match to_mutate {
-                Term::Message(msg) => ByteAddMutator.mutate(state, msg, stage_idx), // stage ?
+                Term::Message(msg) => {
+                    if msg.payload.len() == 0 {
+                        Ok(MutationResult::Skipped)
+                    } else {
+                        msg.index = rand
+                            .below(msg.payload.len().try_into().unwrap())
+                            .try_into()
+                            .unwrap();
+                        ByteAddMutator.mutate(state, msg, stage_idx)
+                    }
+                }
                 _ => panic!("this shouldn't happen !"),
             }
         } else {
@@ -834,7 +854,17 @@ where
             rand,
         ) {
             match to_mutate {
-                Term::Message(msg) => ByteDecMutator.mutate(state, msg, stage_idx), // stage ?
+                Term::Message(msg) => {
+                    if msg.payload.len() == 0 {
+                        Ok(MutationResult::Skipped)
+                    } else {
+                        msg.index = rand
+                            .below(msg.payload.len().try_into().unwrap())
+                            .try_into()
+                            .unwrap();
+                        ByteDecMutator.mutate(state, msg, stage_idx)
+                    }
+                }
                 _ => panic!("this shouldn't happen !"),
             }
         } else {
@@ -894,7 +924,17 @@ where
             rand,
         ) {
             match to_mutate {
-                Term::Message(msg) => ByteFlipMutator.mutate(state, msg, stage_idx), // stage ?
+                Term::Message(msg) => {
+                    if msg.payload.len() == 0 {
+                        Ok(MutationResult::Skipped)
+                    } else {
+                        msg.index = rand
+                            .below(msg.payload.len().try_into().unwrap())
+                            .try_into()
+                            .unwrap();
+                        ByteFlipMutator.mutate(state, msg, stage_idx)
+                    }
+                }
                 _ => panic!("this shouldn't happen !"),
             }
         } else {
@@ -953,7 +993,17 @@ where
             rand,
         ) {
             match to_mutate {
-                Term::Message(msg) => ByteIncMutator.mutate(state, msg, stage_idx), // stage ?
+                Term::Message(msg) => {
+                    if msg.payload.len() == 0 {
+                        Ok(MutationResult::Skipped)
+                    } else {
+                        msg.index = rand
+                            .below(msg.payload.len().try_into().unwrap())
+                            .try_into()
+                            .unwrap();
+                        ByteIncMutator.mutate(state, msg, stage_idx)
+                    }
+                }
                 _ => panic!("this shouldn't happen !"),
             }
         } else {
@@ -1014,7 +1064,17 @@ where
             rand,
         ) {
             match to_mutate {
-                Term::Message(msg) => ByteInterestingMutator.mutate(state, msg, stage_idx), // stage ?
+                Term::Message(msg) => {
+                    if msg.payload.len() == 0 {
+                        Ok(MutationResult::Skipped)
+                    } else {
+                        msg.index = rand
+                            .below(msg.payload.len().try_into().unwrap())
+                            .try_into()
+                            .unwrap();
+                        ByteInterestingMutator.mutate(state, msg, stage_idx)
+                    }
+                }
                 _ => panic!("this shouldn't happen !"),
             }
         } else {
@@ -1073,7 +1133,17 @@ where
             rand,
         ) {
             match to_mutate {
-                Term::Message(msg) => ByteNegMutator.mutate(state, msg, stage_idx), // stage ?
+                Term::Message(msg) => {
+                    if msg.payload.len() == 0 {
+                        Ok(MutationResult::Skipped)
+                    } else {
+                        msg.index = rand
+                            .below(msg.payload.len().try_into().unwrap())
+                            .try_into()
+                            .unwrap();
+                        ByteInterestingMutator.mutate(state, msg, stage_idx)
+                    }
+                }
                 _ => panic!("this shouldn't happen !"),
             }
         } else {
@@ -1132,7 +1202,17 @@ where
             rand,
         ) {
             match to_mutate {
-                Term::Message(msg) => ByteRandMutator.mutate(state, msg, stage_idx), // stage ?
+                Term::Message(msg) => {
+                    if msg.payload.len() == 0 {
+                        Ok(MutationResult::Skipped)
+                    } else {
+                        msg.index = rand
+                            .below(msg.payload.len().try_into().unwrap())
+                            .try_into()
+                            .unwrap();
+                        ByteRandMutator.mutate(state, msg, stage_idx)
+                    }
+                }
                 _ => panic!("this shouldn't happen !"),
             }
         } else {
@@ -1191,7 +1271,17 @@ where
             rand,
         ) {
             match to_mutate {
-                Term::Message(msg) => BytesCopyMutator.mutate(state, msg, stage_idx), // stage ?
+                Term::Message(msg) => {
+                    if msg.payload.len() == 0 {
+                        Ok(MutationResult::Skipped)
+                    } else {
+                        msg.index = rand
+                            .below(msg.payload.len().try_into().unwrap())
+                            .try_into()
+                            .unwrap();
+                        BytesCopyMutator.mutate(state, msg, stage_idx)
+                    }
+                }
                 _ => panic!("this shouldn't happen !"),
             }
         } else {
@@ -1250,7 +1340,17 @@ where
             rand,
         ) {
             match to_mutate {
-                Term::Message(msg) => BytesDeleteMutator.mutate(state, msg, stage_idx), // stage ?
+                Term::Message(msg) => {
+                    if msg.payload.len() == 0 {
+                        Ok(MutationResult::Skipped)
+                    } else {
+                        msg.index = rand
+                            .below(msg.payload.len().try_into().unwrap())
+                            .try_into()
+                            .unwrap();
+                        BytesDeleteMutator.mutate(state, msg, stage_idx)
+                    }
+                }
                 _ => panic!("this shouldn't happen !"),
             }
         } else {
@@ -1309,7 +1409,17 @@ where
             rand,
         ) {
             match to_mutate {
-                Term::Message(msg) => BytesExpandMutator.mutate(state, msg, stage_idx), // stage ?
+                Term::Message(msg) => {
+                    if msg.payload.len() == 0 {
+                        Ok(MutationResult::Skipped)
+                    } else {
+                        msg.index = rand
+                            .below(msg.payload.len().try_into().unwrap())
+                            .try_into()
+                            .unwrap();
+                        BytesExpandMutator.mutate(state, msg, stage_idx)
+                    }
+                }
                 _ => panic!("this shouldn't happen !"),
             }
         } else {
@@ -1370,8 +1480,16 @@ where
         ) {
             match to_mutate {
                 Term::Message(msg) => {
-                    mutations::BytesInsertCopyMutator::default().mutate(state, msg, stage_idx)
-                } // stage ?
+                    if msg.payload.len() == 0 {
+                        Ok(MutationResult::Skipped)
+                    } else {
+                        msg.index = rand
+                            .below(msg.payload.len().try_into().unwrap())
+                            .try_into()
+                            .unwrap();
+                        mutations::BytesInsertCopyMutator::default().mutate(state, msg, stage_idx)
+                    }
+                }
                 _ => panic!("this shouldn't happen !"),
             }
         } else {
@@ -1430,7 +1548,17 @@ where
             rand,
         ) {
             match to_mutate {
-                Term::Message(msg) => BytesInsertMutator.mutate(state, msg, stage_idx), // stage ?
+                Term::Message(msg) => {
+                    if msg.payload.len() == 0 {
+                        Ok(MutationResult::Skipped)
+                    } else {
+                        msg.index = rand
+                            .below(msg.payload.len().try_into().unwrap())
+                            .try_into()
+                            .unwrap();
+                        BytesInsertMutator.mutate(state, msg, stage_idx)
+                    }
+                }
                 _ => panic!("this shouldn't happen !"),
             }
         } else {
@@ -1490,7 +1618,17 @@ where
             rand,
         ) {
             match to_mutate {
-                Term::Message(msg) => BytesRandInsertMutator.mutate(state, msg, stage_idx), // stage ?
+                Term::Message(msg) => {
+                    if msg.payload.len() == 0 {
+                        Ok(MutationResult::Skipped)
+                    } else {
+                        msg.index = rand
+                            .below(msg.payload.len().try_into().unwrap())
+                            .try_into()
+                            .unwrap();
+                        BytesRandInsertMutator.mutate(state, msg, stage_idx)
+                    }
+                }
                 _ => panic!("this shouldn't happen !"),
             }
         } else {
@@ -1549,7 +1687,17 @@ where
             rand,
         ) {
             match to_mutate {
-                Term::Message(msg) => BytesRandSetMutator.mutate(state, msg, stage_idx), // stage ?
+                Term::Message(msg) => {
+                    if msg.payload.len() == 0 {
+                        Ok(MutationResult::Skipped)
+                    } else {
+                        msg.index = rand
+                            .below(msg.payload.len().try_into().unwrap())
+                            .try_into()
+                            .unwrap();
+                        BytesRandSetMutator.mutate(state, msg, stage_idx)
+                    }
+                }
                 _ => panic!("this shouldn't happen !"),
             }
         } else {
@@ -1608,7 +1756,17 @@ where
             rand,
         ) {
             match to_mutate {
-                Term::Message(msg) => BytesSetMutator.mutate(state, msg, stage_idx), // stage ?
+                Term::Message(msg) => {
+                    if msg.payload.len() == 0 {
+                        Ok(MutationResult::Skipped)
+                    } else {
+                        msg.index = rand
+                            .below(msg.payload.len().try_into().unwrap())
+                            .try_into()
+                            .unwrap();
+                        BytesSetMutator.mutate(state, msg, stage_idx)
+                    }
+                }
                 _ => panic!("this shouldn't happen !"),
             }
         } else {
@@ -1768,7 +1926,17 @@ where
             rand,
         ) {
             match to_mutate {
-                Term::Message(msg) => DwordAddMutator.mutate(state, msg, stage_idx), // stage ?
+                Term::Message(msg) => {
+                    if msg.payload.len() == 0 {
+                        Ok(MutationResult::Skipped)
+                    } else {
+                        msg.index = rand
+                            .below(msg.payload.len().try_into().unwrap())
+                            .try_into()
+                            .unwrap();
+                        DwordAddMutator.mutate(state, msg, stage_idx)
+                    }
+                }
                 _ => panic!("this shouldn't happen !"),
             }
         } else {
@@ -1828,7 +1996,17 @@ where
             rand,
         ) {
             match to_mutate {
-                Term::Message(msg) => DwordInterestingMutator.mutate(state, msg, stage_idx), // stage ?
+                Term::Message(msg) => {
+                    if msg.payload.len() == 0 {
+                        Ok(MutationResult::Skipped)
+                    } else {
+                        msg.index = rand
+                            .below(msg.payload.len().try_into().unwrap())
+                            .try_into()
+                            .unwrap();
+                        DwordInterestingMutator.mutate(state, msg, stage_idx)
+                    }
+                }
                 _ => panic!("this shouldn't happen !"),
             }
         } else {
@@ -1888,7 +2066,17 @@ where
             rand,
         ) {
             match to_mutate {
-                Term::Message(msg) => QwordAddMutator.mutate(state, msg, stage_idx), // stage ?
+                Term::Message(msg) => {
+                    if msg.payload.len() == 0 {
+                        Ok(MutationResult::Skipped)
+                    } else {
+                        msg.index = rand
+                            .below(msg.payload.len().try_into().unwrap())
+                            .try_into()
+                            .unwrap();
+                        QwordAddMutator.mutate(state, msg, stage_idx)
+                    }
+                }
                 _ => panic!("this shouldn't happen !"),
             }
         } else {
@@ -2009,7 +2197,17 @@ where
             rand,
         ) {
             match to_mutate {
-                Term::Message(msg) => WordAddMutator.mutate(state, msg, stage_idx), // stage ?
+                Term::Message(msg) => {
+                    if msg.payload.len() == 0 {
+                        Ok(MutationResult::Skipped)
+                    } else {
+                        msg.index = rand
+                            .below(msg.payload.len().try_into().unwrap())
+                            .try_into()
+                            .unwrap();
+                        WordAddMutator.mutate(state, msg, stage_idx)
+                    }
+                }
                 _ => panic!("this shouldn't happen !"),
             }
         } else {
@@ -2069,7 +2267,17 @@ where
             rand,
         ) {
             match to_mutate {
-                Term::Message(msg) => WordInterestingMutator.mutate(state, msg, stage_idx), // stage ?
+                Term::Message(msg) => {
+                    if msg.payload.len() == 0 {
+                        Ok(MutationResult::Skipped)
+                    } else {
+                        msg.index = rand
+                            .below(msg.payload.len().try_into().unwrap())
+                            .try_into()
+                            .unwrap();
+                        WordInterestingMutator.mutate(state, msg, stage_idx)
+                    }
+                }
                 _ => panic!("this shouldn't happen !"),
             }
         } else {

@@ -12,6 +12,7 @@ use std::{
 };
 
 use libafl::prelude::HasBytesVec;
+use rand::thread_rng;
 
 use rand::random;
 use serde::{Deserialize, Serialize};
@@ -353,21 +354,27 @@ pub struct ByteMessage<M: Matcher> {
     pub old_term: Box<Term<M>>,
     /// the message, it needs to be a message for evaluated function
     pub payload: Vec<Vec<u8>>,
+    /// the index of the string that will be mutated
+    pub index: usize,
 }
 
 impl<M: Matcher> ByteMessage<M> {
     pub fn new(old_term: Box<Term<M>>, payload: Vec<Vec<u8>>) -> ByteMessage<M> {
-        ByteMessage { old_term, payload }
+        ByteMessage {
+            old_term,
+            payload,
+            index: 100,
+        }
     }
 }
 
 impl<M: Matcher> HasBytesVec for ByteMessage<M> {
     fn bytes(&self) -> &[u8] {
-        &self.payload[0]
+        &self.payload[self.index]
     }
 
     fn bytes_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.payload[0]
+        &mut self.payload[self.index]
     }
 }
 
